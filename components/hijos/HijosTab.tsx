@@ -197,12 +197,15 @@ export default function HijosTab({ children, onSave }: Props) {
               )}
             </div>
           ))}
-
-          <button style={{ ...S.btn, fontSize: 11, width: '100%', textAlign: 'center', marginTop: 4 }}
-            onClick={() => { setNewFund({ isin: '', short: '', m: '', inv: '' }); setModal('addFund'); }}>
-            + Añadir fondo
-          </button>
         </div>
+      </div>
+
+      {/* ── Añadir fondo (fuera de las cards) ── */}
+      <div style={{ marginTop: '0.75rem' }}>
+        <button style={{ ...S.btn, fontSize: 11 }}
+          onClick={() => { setNewFund({ isin: '', short: '', m: '', inv: '' }); setModal('addFund'); }}>
+          + Añadir fondo a {child.name}
+        </button>
       </div>
 
       {/* ── MODALES ── */}
