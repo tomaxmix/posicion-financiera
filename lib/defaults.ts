@@ -40,19 +40,25 @@ export const DEFAULT_CHILDREN: Child[] = [
   {
     id: 'simon',
     name: 'Simón',
-    objetivo: 50000,
-    objetivoLabel: 'Universidad / Futuro',
-    cuentas: [{ label: 'Indexa Capital', value: 0, color: '#3b82f6' }],
-    funds: [],
+    cuentas: [
+      { label: 'Imagine Bank', value: 0, color: '#3b82f6' },
+    ],
+    funds: [
+      { id: 'SF1', isin: 'IE00BFPM9N11', short: 'Vanguard Global Stk', type: 'RV', m: 5676.21, inv: 5019.79, r: (5676.21 - 5019.79) / 5019.79 * 100 },
+      { id: 'SF2', isin: 'IE00BGCZ0B53', short: 'Vanguard Global Bnd', type: 'RF', m: 580.68,  inv: 577.53,  r: (580.68  - 577.53)  / 577.53  * 100 },
+    ],
     history: [],
   },
   {
     id: 'felix',
     name: 'Félix',
-    objetivo: 50000,
-    objetivoLabel: 'Universidad / Futuro',
-    cuentas: [{ label: 'Indexa Capital', value: 0, color: '#10b981' }],
-    funds: [],
+    cuentas: [
+      { label: 'Imagine Bank', value: 0, color: '#10b981' },
+    ],
+    funds: [
+      { id: 'FF1', isin: 'IE00BFPM9N11', short: 'Vanguard Global Stk', type: 'RV', m: 4648.51, inv: 4128.52, r: (4648.51 - 4128.52) / 4128.52 * 100 },
+      { id: 'FF2', isin: 'IE00BGCZ0B53', short: 'Vanguard Global Bnd', type: 'RF', m: 476.37,  inv: 474.21,  r: (476.37  - 474.21)  / 474.21  * 100 },
+    ],
     history: [],
   },
 ];

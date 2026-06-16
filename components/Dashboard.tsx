@@ -13,6 +13,7 @@ import HijosTab         from './hijos/HijosTab';
 import OperativaTab     from './operativa/OperativaTab';
 import ModalesGlobales  from './modales/ModalesGlobales';
 import AportacionesBanner from './shared/AportacionesBanner';
+import ExplorarTab from './explorar/ExplorarTab';
 
 const TABS = [
   { id: 'patrimonio',  label: 'Patrimonio'  },
@@ -21,6 +22,7 @@ const TABS = [
   { id: 'noticias',    label: 'Noticias & IA'},
   { id: 'hijos',       label: 'Hijos'       },
   { id: 'operativa',   label: 'Operativa'   },
+  { id: 'explorar',    label: '🔍 Explorar' },
 ];
 
 export default function Dashboard() {
@@ -50,29 +52,43 @@ export default function Dashboard() {
     }]);
   };
 
-  /* Actualizar precios de mercado */
+  /* Actualizar precios de mercado (cartera principal + fondos de los hijos) */
   const updateMarketPrices = async () => {
     setUpdatingPrices(true);
     setPriceMsg(null);
     try {
-      const res  = await fetch('/api/market', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ funds: funds.map(f => ({ id: f.id, isin: f.isin, short: f.short, type: f.type, m: f.m })) }),
-      });
+      // Recopilamos todos los fondos (cartera + hijos) para una sola llamada
+      const childFunds = children.flatMap(c => c.funds.map(f => ({ id: `${c.id}__${f.id}`, isin: f.isin, short: f.short, type: f.type, m: f.m })));
+      const allFunds   = [...funds.map(f => ({ id: f.id, isin: f.isin, short: f.short, type: f.type, m: f.m })), ...childFunds];
+
+      const res     = await fetch('/api/market', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ funds: allFunds }) });
       const { results } = await res.json();
 
       let updated = 0;
+
+      // Actualizar cartera principal
       const newFunds = funds.map(f => {
         const r = results.find((x: any) => x.isin === f.isin);
         if (!r || r.changePercent === null) return f;
-        // Aplicamos el % de cambio diario al valor de mercado actual
         const newM = f.m * (1 + r.changePercent / 100);
         updated++;
         return { ...f, m: parseFloat(newM.toFixed(2)), r: f.inv > 0 ? (newM - f.inv) / f.inv * 100 : 0 };
       });
 
+      // Actualizar fondos de los hijos
+      const newChildren = children.map(c => ({
+        ...c,
+        funds: c.funds.map(f => {
+          const r = results.find((x: any) => x.isin === f.isin);
+          if (!r || r.changePercent === null) return f;
+          const newM = f.m * (1 + r.changePercent / 100);
+          updated++;
+          return { ...f, m: parseFloat(newM.toFixed(2)), r: f.inv > 0 ? (newM - f.inv) / f.inv * 100 : 0 };
+        }),
+      }));
+
       await setFunds(newFunds);
+      await setChildren(newChildren);
       await setData({ ...data, lastUpd: todayStr() });
       setPriceMsg(`✓ ${updated} fondos actualizados`);
       setTimeout(() => setPriceMsg(null), 4000);
@@ -187,10 +203,28 @@ export default function Dashboard() {
             invTotal={invTotal}
             onDelete={i => setHistory(history.filter((_, idx) => idx !== i))}
             onClear={() => setHistory([])}
+            children={children}
           />
         )}
         {tab === 'noticias'    && <NoticiasTab funds={funds} />}
         {tab === 'hijos'       && <HijosTab children={children} onSave={setChildren} />}
+        {tab === 'explorar' && (
+          <ExplorarTab
+            funds={funds}
+            onAddFund={(isin, name) => {
+              const newFund = {
+                id:    'F_' + Date.now(),
+                isin,
+                short: name || isin,
+                type:  'RV' as const,
+                m:     0,
+                inv:   0,
+                r:     0,
+              };
+              setFunds([...funds, newFund]);
+            }}
+          />
+        )}
         {tab === 'operativa'   && (
           <OperativaTab
             operations={operations}

@@ -27,6 +27,9 @@ const KNOWN: Record<string, string> = {
   'GRF:BME':      'GRF.MC',
   'LU1694789451': '0P0001CH1D.F',
   'IE00BD4GTQ32': 'FLXF.MU',
+  // Fondos hijos (Indexa Capital vía Vanguard)
+  'IE00BFPM9N11': '0P0001CBCF.F',
+  'IE00BGCZ0B53': '0P0001CBCE.F',
 };
 
 async function getYahooTicker(isin: string): Promise<string | null> {
