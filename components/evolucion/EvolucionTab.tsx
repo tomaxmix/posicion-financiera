@@ -121,18 +121,6 @@ export default function EvolucionTab({ history, patrimonioLiquido, cuentasTotal,
                     ))}
                   </div>
 
-                  {/* Barra objetivo */}
-                  {objetivo > 0 && (
-                    <div style={{ marginBottom: '1rem' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#475569', marginBottom: 4 }}>
-                        <span>{child.objetivoLabel || 'Objetivo'}</span>
-                        <span style={{ color: '#f59e0b', fontWeight: 700 }}>{progressPct.toFixed(1)}% de {fmt(objetivo)} €</span>
-                      </div>
-                      <div style={{ height: 6, background: '#1e293b', borderRadius: 3, overflow: 'hidden' }}>
-                        <div style={{ height: '100%', width: progressPct + '%', background: 'linear-gradient(90deg,#f59e0b,#fbbf24)', borderRadius: 3 }} />
-                      </div>
-                    </div>
-                  )}
 
                   {/* Gráfica o mensaje */}
                   {history.length < 2 ? (

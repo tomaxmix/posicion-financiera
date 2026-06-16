@@ -35,15 +35,34 @@ export default function HijosTab({ children, onSave }: Props) {
     setModal(null);
   };
 
+  // Detecta estructura antigua (ISIN = INDEXA_xxx)
+  const isLegacyIndexa = child.funds.length === 1 && child.funds[0].isin.startsWith('INDEXA_');
+
+  // Fondos Vanguard por defecto para migración
+  const VANGUARD_DEFAULTS = (childId: string) => [
+    { id: `${childId}_VStk`, isin: 'IE00BFPM9N11', short: 'Vanguard Global Stk', type: 'RV' as const, m: 0, inv: 0, r: 0 },
+    { id: `${childId}_VBnd`, isin: 'IE00BGCZ0B53', short: 'Vanguard Global Bnd', type: 'RF' as const, m: 0, inv: 0, r: 0 },
+  ];
+
   const saveIndexa = () => {
-    update(c => ({
-      ...c,
-      funds: c.funds.map(f => {
-        const m   = parseFloat(vals['f_m_'   + f.id]) || f.m;
-        const inv = parseFloat(vals['f_inv_' + f.id]) || f.inv;
+    if (isLegacyIndexa) {
+      // Migración: reemplazar fondo único por los dos Vanguard
+      const newFunds = VANGUARD_DEFAULTS(child.id).map(f => {
+        const m   = parseFloat(vals['f_m_'   + f.id]) || 0;
+        const inv = parseFloat(vals['f_inv_' + f.id]) || 0;
         return { ...f, m, inv, r: inv > 0 ? (m - inv) / inv * 100 : 0 };
-      }),
-    }));
+      });
+      update(c => ({ ...c, funds: newFunds }));
+    } else {
+      update(c => ({
+        ...c,
+        funds: c.funds.map(f => {
+          const m   = parseFloat(vals['f_m_'   + f.id]) || f.m;
+          const inv = parseFloat(vals['f_inv_' + f.id]) || f.inv;
+          return { ...f, m, inv, r: inv > 0 ? (m - inv) / inv * 100 : 0 };
+        }),
+      }));
+    }
     setModal(null);
   };
 
@@ -226,7 +245,12 @@ export default function HijosTab({ children, onSave }: Props) {
 
       {modal === 'editIndexa' && (
         <Modal title={`Actualizar Indexa Capital — ${child.name}`} onClose={() => setModal(null)}>
-          {child.funds.map(f => (
+          {isLegacyIndexa && (
+            <div style={{ background: '#0a1628', border: '1px solid #1e3a5f', borderRadius: 8, padding: '0.75rem 1rem', marginBottom: 14, fontSize: 12, color: '#60a5fa' }}>
+              Introduce los valores actuales de tus dos fondos Vanguard y se actualizará la estructura automáticamente.
+            </div>
+          )}
+          {(isLegacyIndexa ? VANGUARD_DEFAULTS(child.id) : child.funds).map(f => (
             <div key={f.id} style={{ background: '#0a0f1e', borderRadius: 10, padding: '1rem', border: '1px solid #1f2937', marginBottom: 14 }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', marginBottom: 10 }}>{f.short}</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
