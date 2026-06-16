@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Fund } from '@/lib/types';
 import { S } from '@/lib/styles';
+import MorningstarTab from './MorningstarTab';
 
 interface Props {
   funds: Fund[];
@@ -25,7 +26,13 @@ interface Message {
   funds?: FundRef[];
 }
 
+const SUB_TABS = [
+  { id: 'myinvestor',   label: '🏦 MyInvestor + IA' },
+  { id: 'morningstar',  label: '⭐ Morningstar'      },
+];
+
 export default function ExplorarTab({ funds, onAddFund }: Props) {
+  const [subTab,     setSubTab]     = useState('myinvestor');
   const [messages,   setMessages]   = useState<Message[]>([]);
   const [input,      setInput]      = useState('');
   const [loading,    setLoading]    = useState(false);
@@ -65,8 +72,39 @@ export default function ExplorarTab({ funds, onAddFund }: Props) {
     setAddedIsins(prev => new Set([...prev, isin]));
   };
 
+  if (subTab === 'morningstar') {
+    return (
+      <div>
+        {/* Selector sub-tabs */}
+        <div style={{ display: 'flex', gap: 6, marginBottom: '1.25rem' }}>
+          {SUB_TABS.map(t => (
+            <button key={t.id} onClick={() => setSubTab(t.id)} style={{
+              padding: '8px 18px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+              background: subTab === t.id ? 'linear-gradient(135deg,#a78bfa,#8b5cf6)' : 'transparent',
+              border: `1px solid ${subTab === t.id ? '#8b5cf6' : '#1f2937'}`,
+              color: subTab === t.id ? '#fff' : '#64748b', fontFamily: 'inherit',
+            }}>{t.label}</button>
+          ))}
+        </div>
+        <MorningstarTab funds={funds} onAddFund={onAddFund} />
+      </div>
+    );
+  }
+
   return (
     <div>
+      {/* Selector sub-tabs */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: '1.25rem' }}>
+        {SUB_TABS.map(t => (
+          <button key={t.id} onClick={() => setSubTab(t.id)} style={{
+            padding: '8px 18px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+            background: subTab === t.id ? 'linear-gradient(135deg,#3b82f6,#1d4ed8)' : 'transparent',
+            border: `1px solid ${subTab === t.id ? '#3b82f6' : '#1f2937'}`,
+            color: subTab === t.id ? '#fff' : '#64748b', fontFamily: 'inherit',
+          }}>{t.label}</button>
+        ))}
+      </div>
+
       {/* Header informativo */}
       <div style={{ ...S.card, marginBottom: '1rem', background: 'linear-gradient(135deg,#0c1a3a,#0a1628)', borderColor: '#1e3a5f' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
