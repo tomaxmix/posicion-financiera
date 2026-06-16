@@ -1,117 +1,91 @@
 import { NextRequest, NextResponse } from 'next/server';
+import Anthropic from '@anthropic-ai/sdk';
 
 export const runtime = 'nodejs';
 
 export interface MstarResult {
-  id:          string;
-  isin:        string;
-  name:        string;
-  ticker:      string;
-  type:        string;
-  exchange:    string;
-  currency:    string;
-  stars:       number | null;
-  category:    string;
-  ter:         number | null;
-  return1y:    number | null;
-  return3y:    number | null;
-  return5y:    number | null;
+  id:            string;
+  isin:          string;
+  name:          string;
+  type:          string;
+  exchange:      string;
+  currency:      string;
+  stars:         number | null;
+  category:      string;
+  ter:           number | null;
+  return1y:      number | null;
+  return3y:      number | null;
+  return5y:      number | null;
   analystRating: string | null;
+  available_eu:  boolean;
+  description:   string;
 }
 
-const HEADERS = {
-  'Accept':           'application/json, text/plain, */*',
-  'Accept-Language':  'es-ES,es;q=0.9,en;q=0.8',
-  'User-Agent':       'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-  'Referer':          'https://www.morningstar.es/',
-  'Origin':           'https://www.morningstar.es',
-};
+const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
-/* ── Búsqueda por texto ── */
-async function searchSecurities(query: string): Promise<MstarResult[]> {
-  // Morningstar Spain search — includes European & global funds/ETFs
-  const universes = 'FOESP00000,FOEUR00000,ETXEU,ETEUR,FOUSA00000,E0WWE$$ALL';
-  const url = `https://www.morningstar.es/es/util/SecuritySearch.aspx?q=${encodeURIComponent(query)}&limit=20&_=${Date.now()}`;
+const SYSTEM = `Eres un experto en fondos de inversión y ETFs. Cuando el usuario busque fondos, devuelves SIEMPRE un JSON válido con un array de hasta 10 resultados.
 
-  const res = await fetch(url, { headers: HEADERS, next: { revalidate: 60 } });
-  if (!res.ok) throw new Error(`Morningstar search failed: ${res.status}`);
-
-  const text = await res.text();
-  // Response is JSONP-like or plain JSON array
-  const json = JSON.parse(text.startsWith('[') ? text : text.replace(/^[^[]*/, '').replace(/[^\]]*$/, ''));
-
-  return (json as any[]).slice(0, 15).map((item: any) => ({
-    id:            item.id           || item.Id           || '',
-    isin:          item.isin         || item.Isin         || '',
-    name:          item.name         || item.Name         || item.SecurityName || '',
-    ticker:        item.ticker       || item.Ticker       || '',
-    type:          item.securityType || item.SecurityType || '',
-    exchange:      item.exchange     || item.Exchange     || '',
-    currency:      item.currency     || item.Currency     || 'EUR',
-    stars:         null,
-    category:      item.category     || item.Category     || '',
-    ter:           null,
-    return1y:      null,
-    return3y:      null,
-    return5y:      null,
-    analystRating: null,
-  }));
-}
-
-/* ── Detalle de un fondo por su ID Morningstar ── */
-async function getFundDetail(secId: string): Promise<Partial<MstarResult>> {
-  try {
-    // Try the Morningstar quote API (used by their widgets)
-    const url = `https://tools.morningstar.es/api/rest.svc/klr5zyak8x/security/screener?page=1&pageSize=1&sortField=LegalName&filters=SecId%3A${secId}&languageId=es-ES&currencyId=EUR&universeIds=FOESP00000|FOEUR00000|FOUSA00000&securityDataPoints=SecId|ISIN|LegalName|StarRatingM255|CategoryName|OngoingCharge|GBRReturnM12|GBRReturnM36|GBRReturnM60|AnalystRatingScale`;
-
-    const res = await fetch(url, { headers: HEADERS, next: { revalidate: 3600 } });
-    if (!res.ok) return {};
-
-    const json = await res.json();
-    const rows = json?.rows || [];
-    if (!rows.length) return {};
-
-    const r = rows[0];
-    return {
-      stars:         r.StarRatingM255 ? parseInt(r.StarRatingM255) : null,
-      category:      r.CategoryName   || '',
-      ter:           r.OngoingCharge  ? parseFloat(r.OngoingCharge) : null,
-      return1y:      r.GBRReturnM12   ? parseFloat(r.GBRReturnM12)  : null,
-      return3y:      r.GBRReturnM36   ? parseFloat(r.GBRReturnM36)  : null,
-      return5y:      r.GBRReturnM60   ? parseFloat(r.GBRReturnM60)  : null,
-      analystRating: r.AnalystRatingScale || null,
-    };
-  } catch {
-    return {};
+Formato estricto (sin texto extra, solo el JSON):
+[
+  {
+    "id": "string único",
+    "isin": "ISIN si lo conoces, si no ''",
+    "name": "nombre completo del fondo",
+    "type": "ETF | Fondo indexado | Fondo activo | Fondo mixto | Renta fija",
+    "exchange": "bolsa principal donde cotiza (ej: LSE, XETRA, Euronext)",
+    "currency": "EUR | USD | GBP",
+    "stars": número del 1 al 5 según Morningstar o null si no lo sabes,
+    "category": "categoría Morningstar en español (ej: RV Global, RF EUR, Mixto Moderado)",
+    "ter": TER en % como número decimal (ej: 0.22) o null,
+    "return1y": rentabilidad 1 año en % como número o null,
+    "return3y": rentabilidad anualizada 3 años en % como número o null,
+    "return5y": rentabilidad anualizada 5 años en % como número o null,
+    "analystRating": "Gold | Silver | Bronze | Neutral | Negative | null",
+    "available_eu": true si está disponible para inversores europeos,
+    "description": "1-2 frases sobre qué es y por qué es relevante"
   }
-}
+]
 
-/* ── Screener directo sin búsqueda previa ── */
-async function screener(query: string): Promise<MstarResult[]> {
-  const url = `https://tools.morningstar.es/api/rest.svc/klr5zyak8x/security/screener?page=1&pageSize=20&sortField=LegalName&filters=LegalName%3A${encodeURIComponent(query)}&languageId=es-ES&currencyId=EUR&universeIds=FOESP00000|FOEUR00000|ETXEU|FOUSA00000&securityDataPoints=SecId|ISIN|LegalName|StarRatingM255|CategoryName|OngoingCharge|GBRReturnM12|GBRReturnM36|GBRReturnM60|AnalystRatingScale|ExchangeId|CurrencyId`;
+Usa tu conocimiento hasta tu fecha de corte. El TER y las características del fondo cambian poco. Para rentabilidades usa datos aproximados si no los sabes exactos, o null.
+Incluye siempre el ISIN cuando lo conozcas con certeza. Prioriza fondos/ETFs disponibles en Europa.`;
 
-  const res = await fetch(url, { headers: HEADERS, next: { revalidate: 60 } });
-  if (!res.ok) throw new Error(`Screener failed: ${res.status}`);
+/* ── Enriquecer con precio real de Yahoo Finance ── */
+async function enrichWithPrice(results: MstarResult[]): Promise<MstarResult[]> {
+  // Solo enriquecemos los que tienen ISIN conocido
+  const withIsin = results.filter(r => r.isin && !r.isin.startsWith('DESCONOCIDO'));
+  if (!withIsin.length) return results;
 
-  const json = await res.json();
-  const rows = json?.rows || [];
+  await Promise.allSettled(withIsin.map(async r => {
+    try {
+      // Buscar símbolo de Yahoo Finance por ISIN
+      const searchRes = await fetch(
+        `https://query2.finance.yahoo.com/v1/finance/search?q=${r.isin}&quotesCount=1&newsCount=0`,
+        { headers: { 'User-Agent': 'Mozilla/5.0' } }
+      );
+      const searchData = await searchRes.json();
+      const symbol = searchData?.quotes?.[0]?.symbol;
+      if (!symbol) return;
 
-  return rows.map((r: any) => ({
-    id:            r.SecId            || '',
-    isin:          r.ISIN             || '',
-    name:          r.LegalName        || '',
-    ticker:        '',
-    type:          '',
-    exchange:      r.ExchangeId       || '',
-    currency:      r.CurrencyId       || 'EUR',
-    stars:         r.StarRatingM255   ? parseInt(r.StarRatingM255)   : null,
-    category:      r.CategoryName     || '',
-    ter:           r.OngoingCharge    ? parseFloat(r.OngoingCharge)  : null,
-    return1y:      r.GBRReturnM12     ? parseFloat(r.GBRReturnM12)   : null,
-    return3y:      r.GBRReturnM36     ? parseFloat(r.GBRReturnM36)   : null,
-    return5y:      r.GBRReturnM60     ? parseFloat(r.GBRReturnM60)   : null,
-    analystRating: r.AnalystRatingScale || null,
+      // Obtener precio actual
+      const chartRes = await fetch(
+        `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?range=1y&interval=1mo`,
+        { headers: { 'User-Agent': 'Mozilla/5.0' } }
+      );
+      const chartData = await chartRes.json();
+      const meta = chartData?.chart?.result?.[0]?.meta;
+      if (meta?.regularMarketPrice) {
+        // Calcular rentabilidad 1A si tenemos datos históricos
+        const closes = chartData?.chart?.result?.[0]?.indicators?.quote?.[0]?.close;
+        if (closes?.length >= 2 && r.return1y === null) {
+          const first = closes.find((v: number) => v != null);
+          const last  = meta.regularMarketPrice;
+          if (first && last) r.return1y = parseFloat(((last - first) / first * 100).toFixed(1));
+        }
+      }
+    } catch { /* silencioso */ }
   }));
+
+  return results;
 }
 
 export async function POST(req: NextRequest) {
@@ -119,16 +93,27 @@ export async function POST(req: NextRequest) {
     const { query } = await req.json();
     if (!query?.trim()) return NextResponse.json({ results: [] });
 
-    // Try screener first (returns rich data in one call), fall back to search
-    let results: MstarResult[] = [];
-    try {
-      results = await screener(query);
-    } catch {
-      results = await searchSecurities(query);
-    }
+    const message = await client.messages.create({
+      model:      'claude-haiku-4-5-20251001',
+      max_tokens: 2048,
+      system:     SYSTEM,
+      messages:   [{ role: 'user', content: `Busca fondos/ETFs para: "${query}"` }],
+    });
+
+    const text = (message.content[0] as any).text?.trim() || '[]';
+
+    // Extraer JSON del texto (puede venir con ```json ... ```)
+    const jsonMatch = text.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) return NextResponse.json({ results: [] });
+
+    let results: MstarResult[] = JSON.parse(jsonMatch[0]);
+
+    // Enriquecer con precio real de Yahoo Finance
+    results = await enrichWithPrice(results);
 
     return NextResponse.json({ results });
   } catch (err: any) {
+    console.error('Morningstar route error:', err.message);
     return NextResponse.json({ error: err.message, results: [] }, { status: 500 });
   }
 }
