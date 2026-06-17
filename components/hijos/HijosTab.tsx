@@ -35,8 +35,10 @@ export default function HijosTab({ children, onSave }: Props) {
     setModal(null);
   };
 
-  // Detecta estructura antigua (ISIN = INDEXA_xxx)
-  const isLegacyIndexa = child.funds.length === 1 && child.funds[0].isin.startsWith('INDEXA_');
+  // Detecta estructura antigua: sin fondos, o fondo único con ISIN placeholder (INDEXA_xxx)
+  const isLegacyIndexa =
+    child.funds.length === 0 ||
+    (child.funds.length === 1 && child.funds[0].isin.startsWith('INDEXA'));
 
   // Fondos Vanguard por defecto para migración
   const VANGUARD_DEFAULTS = (childId: string) => [
@@ -151,10 +153,7 @@ export default function HijosTab({ children, onSave }: Props) {
           </div>
           {child.cuentas.map(c => (
             <div key={c.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#0a0f1e', borderRadius: 10, padding: '0.875rem 1rem', border: '1px solid #3b82f633', marginBottom: 8 }}>
-              <div>
-                <div style={{ fontSize: 11, color: '#3b82f6', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>{c.label}</div>
-                <div style={{ fontSize: 22, fontWeight: 700, color: '#f1f5f9' }}>{fmt(c.value)} €</div>
-              </div>
+              <div style={{ fontSize: 22, fontWeight: 700, color: '#f1f5f9' }}>{fmt(c.value)} €</div>
               {child.cuentas.length > 1 && (
                 <button onClick={() => removeAccount(c.label)} style={{ background: 'none', border: '1px solid #ef444433', borderRadius: 6, color: '#ef4444', cursor: 'pointer', fontSize: 11, padding: '3px 7px' }}>✕</button>
               )}
@@ -172,7 +171,9 @@ export default function HijosTab({ children, onSave }: Props) {
             <div style={S.sec}>Indexa Capital</div>
             <button style={{ ...S.btn, fontSize: 11, padding: '5px 12px' }} onClick={() => {
               const v: Record<string, string> = {};
-              child.funds.forEach(f => { v['f_m_' + f.id] = String(f.m); v['f_inv_' + f.id] = String(f.inv); });
+              // En modo legacy inicializamos los vals con los IDs de Vanguard (vacíos para rellenar)
+              const fundsToInit = isLegacyIndexa ? VANGUARD_DEFAULTS(child.id) : child.funds;
+              fundsToInit.forEach(f => { v['f_m_' + f.id] = String(f.m || ''); v['f_inv_' + f.id] = String(f.inv || ''); });
               setVals(v); setModal('editIndexa');
             }}>↑ Actualizar</button>
           </div>
