@@ -19,6 +19,7 @@ export interface MstarResult {
   analystRating: string | null;
   available_eu:  boolean;
   description:   string;
+  morningstarUrl: string | null;
 }
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
@@ -42,7 +43,8 @@ Formato estricto (sin texto extra, solo el JSON):
     "return5y": rentabilidad anualizada 5 años en % como número o null,
     "analystRating": "Gold | Silver | Bronze | Neutral | Negative | null",
     "available_eu": true si está disponible para inversores europeos,
-    "description": "1-2 frases sobre qué es y por qué es relevante"
+    "description": "1-2 frases sobre qué es y por qué es relevante",
+    "morningstarUrl": "URL directa a la ficha del fondo en morningstar.es — formato: https://www.morningstar.es/es/funds/snapshot/snapshot.aspx?id=SECID para fondos, o https://www.morningstar.es/es/etf/snapshot/snapshot.aspx?id=SECID para ETFs. Si no conoces el SecId exacto devuelve null"
   }
 ]
 
