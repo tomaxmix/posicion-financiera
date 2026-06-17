@@ -111,6 +111,11 @@ export default function Dashboard() {
     await setRecurring(recurring.map(r => r.id === contrib.id ? contrib : r));
   };
 
+  /* Saltar aportación este mes (sin modificar capital) */
+  const handleSkipAportacion = async (contrib: RecurringContribution) => {
+    await setRecurring(recurring.map(r => r.id === contrib.id ? contrib : r));
+  };
+
   if (!loaded) {
     return (
       <div style={{ background: '#0a0f1e', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -193,6 +198,7 @@ export default function Dashboard() {
           funds={funds}
           operations={operations}
           onConfirm={handleConfirmAportacion}
+          onSkip={handleSkipAportacion}
         />
 
         {tab === 'patrimonio'  && <PatrimonioTab funds={funds} data={data} />}
