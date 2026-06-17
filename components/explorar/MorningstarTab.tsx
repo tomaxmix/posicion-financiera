@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Fund } from '@/lib/types';
 import { S } from '@/lib/styles';
+import FundChart from '@/components/inversiones/FundChart';
 import type { MstarResult } from '@/app/api/morningstar/route';
 
 interface Props {
@@ -56,12 +57,13 @@ function AnalystBadge({ r }: { r: string | null }) {
 }
 
 export default function MorningstarTab({ funds, onAddFund }: Props) {
-  const [query,    setQuery]    = useState('');
-  const [results,  setResults]  = useState<MstarResult[]>([]);
-  const [loading,  setLoading]  = useState(false);
-  const [error,    setError]    = useState<string | null>(null);
-  const [added,    setAdded]    = useState<Set<string>>(new Set());
-  const [searched, setSearched] = useState(false);
+  const [query,      setQuery]      = useState('');
+  const [results,    setResults]    = useState<MstarResult[]>([]);
+  const [loading,    setLoading]    = useState(false);
+  const [error,      setError]      = useState<string | null>(null);
+  const [added,      setAdded]      = useState<Set<string>>(new Set());
+  const [searched,   setSearched]   = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const existingIsins = new Set(funds.map(f => f.isin));
 
@@ -157,12 +159,31 @@ export default function MorningstarTab({ funds, onAddFund }: Props) {
           {!loading && results.map(r => {
             const inPortfolio = existingIsins.has(r.isin);
             const isAdded     = added.has(r.isin);
+            const cardKey     = r.id || r.isin;
+            const isExpanded  = expandedId === cardKey;
+
+            // Objeto Fund mínimo para FundChart
+            const pseudoFund: Fund = {
+              id: cardKey, isin: r.isin, short: r.name,
+              type: r.type === 'ETF' ? 'ETF' : 'RV',
+              m: 0, inv: 0, r: 0,
+            };
+
+            // Link Morningstar España por ISIN
+            const mstarUrl = r.isin
+              ? `https://www.morningstar.es/es/funds/screener/default.aspx#?filtersSelectedValue=%7B%22isin%22:%5B%22${r.isin}%22%5D%7D`
+              : null;
+
             return (
-              <div key={r.id || r.isin} style={{ ...S.card, marginBottom: 8, borderColor: inPortfolio ? '#3b82f633' : '#1f2937' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-                  {/* Info principal */}
+              <div key={cardKey} style={{ ...S.card, marginBottom: 8, padding: 0, overflow: 'hidden', borderColor: inPortfolio ? '#3b82f633' : isExpanded ? '#a78bfa44' : '#1f2937' }}>
+                {/* Fila principal — clicable para expandir */}
+                <div
+                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, padding: '1rem 1.25rem', cursor: 'pointer' }}
+                  onClick={() => setExpandedId(isExpanded ? null : cardKey)}
+                >
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
+                      <span style={{ fontSize: 12, color: '#475569', transition: 'transform 0.2s', display: 'inline-block', transform: isExpanded ? 'rotate(90deg)' : 'none' }}>▶</span>
                       <div style={{ fontSize: 13, fontWeight: 700, color: '#f1f5f9', lineHeight: 1.3 }}>{r.name || 'Sin nombre'}</div>
                       <AnalystBadge r={r.analystRating} />
                       {inPortfolio && <span style={{ fontSize: 10, color: '#3b82f6', fontWeight: 700 }}>EN CARTERA</span>}
@@ -179,9 +200,9 @@ export default function MorningstarTab({ funds, onAddFund }: Props) {
                           TER: <strong style={{ color: r.ter < 0.3 ? '#10b981' : r.ter > 1 ? '#ef4444' : '#f59e0b' }}>{r.ter.toFixed(2)}%</strong>
                         </span>
                       )}
-                      <ReturnBadge v={r.return1y}  label="1A" />
-                      <ReturnBadge v={r.return3y}  label="3A" />
-                      <ReturnBadge v={r.return5y}  label="5A" />
+                      <ReturnBadge v={r.return1y} label="1A" />
+                      <ReturnBadge v={r.return3y} label="3A" />
+                      <ReturnBadge v={r.return5y} label="5A" />
                     </div>
 
                     {r.isin && (
@@ -193,21 +214,38 @@ export default function MorningstarTab({ funds, onAddFund }: Props) {
                     )}
                   </div>
 
-                  {/* Botón añadir */}
-                  {r.isin && !inPortfolio && (
-                    <button
-                      onClick={() => handleAdd(r)}
-                      disabled={isAdded}
-                      style={{
-                        flexShrink: 0, fontSize: 11, padding: '6px 14px', borderRadius: 8, cursor: isAdded ? 'default' : 'pointer',
-                        background: isAdded ? '#064e3b' : 'linear-gradient(135deg,#10b981,#059669)',
-                        border: 'none', color: '#fff', fontWeight: 700, fontFamily: 'inherit',
-                      }}
-                    >
-                      {isAdded ? '✓' : '+ Añadir'}
-                    </button>
-                  )}
+                  {/* Acciones: añadir + link */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end', flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+                    {r.isin && !inPortfolio && (
+                      <button
+                        onClick={() => handleAdd(r)}
+                        disabled={isAdded}
+                        style={{
+                          fontSize: 11, padding: '6px 14px', borderRadius: 8, cursor: isAdded ? 'default' : 'pointer',
+                          background: isAdded ? '#064e3b' : 'linear-gradient(135deg,#10b981,#059669)',
+                          border: 'none', color: '#fff', fontWeight: 700, fontFamily: 'inherit',
+                        }}
+                      >
+                        {isAdded ? '✓ Añadido' : '+ Añadir'}
+                      </button>
+                    )}
+                    {mstarUrl && (
+                      <a
+                        href={mstarUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ fontSize: 10, color: '#a78bfa', textDecoration: 'none', fontWeight: 600, whiteSpace: 'nowrap' }}
+                      >
+                        ⭐ Ver en Morningstar ↗
+                      </a>
+                    )}
+                  </div>
                 </div>
+
+                {/* Desplegable: gráfico */}
+                {isExpanded && r.isin && (
+                  <FundChart fund={pseudoFund} />
+                )}
               </div>
             );
           })}
