@@ -169,9 +169,10 @@ export default function MorningstarTab({ funds, onAddFund }: Props) {
               m: 0, inv: 0, r: 0,
             };
 
-            // URL directa al fondo: usa la que devuelve Claude; si no, busca en Google con ISIN
-            const mstarUrl = r.morningstarUrl
-              || (r.isin ? `https://www.google.com/search?q=morningstar+${encodeURIComponent(r.name)}+${r.isin}+site:morningstar.es` : null);
+            // Búsqueda en Morningstar ES por ISIN (más fiable que SecId inventado por Claude)
+            const mstarUrl = r.isin
+              ? `https://www.morningstar.es/es/funds/SecuritySearchResults.aspx?search=${r.isin}`
+              : `https://www.morningstar.es/es/funds/SecuritySearchResults.aspx?search=${encodeURIComponent(r.name)}`;
 
             return (
               <div key={cardKey} style={{ ...S.card, marginBottom: 8, padding: 0, overflow: 'hidden', borderColor: inPortfolio ? '#3b82f633' : isExpanded ? '#a78bfa44' : '#1f2937' }}>
