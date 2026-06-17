@@ -88,7 +88,7 @@ export default function InversionesTab({ funds, onDeleteFund }: Props) {
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead>
-                  <tr>{['Fondo','Capital inv.','Valor actual','Plusvalía','%'].map(h => (
+                  <tr>{['Fondo','Capital inv.','Valor actual','Plusvalía','%','Precio publicado'].map(h => (
                     <th key={h} style={{ fontSize: 10, color: '#475569', fontWeight: 600, textAlign: h === 'Fondo' ? 'left' : 'right', padding: '8px 12px', borderBottom: '1px solid #1f2937', textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>{h}</th>
                   ))}</tr>
                 </thead>
@@ -102,6 +102,9 @@ export default function InversionesTab({ funds, onDeleteFund }: Props) {
                         <td style={{ padding: '8px 12px', textAlign: 'right', color: '#e2e8f0' }}>{fmt2(f.m)} €</td>
                         <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: p >= 0 ? '#10b981' : '#ef4444' }}>{p >= 0 ? '+' : ''}{fmt2(p)} €</td>
                         <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: f.r >= 0 ? '#10b981' : '#ef4444' }}>{fmtPct(f.r)}</td>
+                        <td style={{ padding: '8px 12px', textAlign: 'right', color: '#334155', fontSize: 10, whiteSpace: 'nowrap' }}>
+                          {f.lastPriceDate ? f.lastPriceDate : '—'}
+                        </td>
                       </tr>
                     );
                   })}
@@ -113,6 +116,7 @@ export default function InversionesTab({ funds, onDeleteFund }: Props) {
                     <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: '#e2e8f0' }}>{fmt2(invTotal)} €</td>
                     <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: pl >= 0 ? '#10b981' : '#ef4444' }}>{pl >= 0 ? '+' : ''}{fmt2(pl)} €</td>
                     <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: plp >= 0 ? '#10b981' : '#ef4444' }}>{fmtPct(plp)}</td>
+                    <td></td>
                   </tr>
                 </tfoot>
               </table>
@@ -143,6 +147,11 @@ export default function InversionesTab({ funds, onDeleteFund }: Props) {
                   <div>
                     <div style={{ fontWeight: 600, color: '#e2e8f0', fontSize: 12 }}>{f.short}</div>
                     <div style={{ fontSize: 10, color: '#334155', marginTop: 1 }}>{f.isin}</div>
+                    {f.lastPriceDate && (
+                      <div style={{ fontSize: 9, color: '#1e3a5f', marginTop: 1 }}>
+                        precio: {f.lastPriceDate}
+                      </div>
+                    )}
                   </div>
                   <div><Tag type={f.type} /></div>
                   <div style={{ textAlign: 'right', fontWeight: 600, color: '#e2e8f0', fontSize: 12 }}>{fmt2(f.m)} €</div>

@@ -46,7 +46,7 @@ async function getYahooTicker(isin: string): Promise<string | null> {
 }
 
 /* ── Obtiene precio de Yahoo Finance a partir de un ticker ── */
-async function getYahooPrice(ticker: string): Promise<{ price: number; prevClose: number; changePercent: number; currency: string; name: string } | null> {
+async function getYahooPrice(ticker: string): Promise<{ price: number; prevClose: number; changePercent: number; currency: string; name: string; date: string } | null> {
   try {
     const res = await fetch(
       `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=5d`,
@@ -60,12 +60,16 @@ async function getYahooPrice(ticker: string): Promise<{ price: number; prevClose
     const prevClose  = meta.previousClose ?? meta.chartPreviousClose;
     const changePercent = prevClose > 0 ? ((price - prevClose) / prevClose) * 100 : 0;
 
+    // Fecha real del último precio publicado
+    const priceDate = meta.regularMarketTime
+      ? new Date(meta.regularMarketTime * 1000).toISOString().split('T')[0]
+      : getTodayDate();
+
     return {
-      price,
-      prevClose,
-      changePercent,
+      price, prevClose, changePercent,
       currency: meta.currency || 'EUR',
       name: meta.longName || meta.shortName || ticker,
+      date: priceDate,
     };
   } catch { return null; }
 }
@@ -159,7 +163,7 @@ export async function POST(req: NextRequest) {
         const ticker = fund.isin === 'GRF:BME' ? 'GRF.MC' : await getYahooTicker(fund.isin);
         if (ticker) {
           const data = await getYahooPrice(ticker);
-          if (data) return { ...base, price: data.price, previousClose: data.prevClose, changePercent: data.changePercent, currency: data.currency, name: data.name, source: 'yahoo' };
+          if (data) return { ...base, price: data.price, previousClose: data.prevClose, changePercent: data.changePercent, currency: data.currency, name: data.name, source: 'yahoo', date: data.date };
         }
       }
 
@@ -171,7 +175,7 @@ export async function POST(req: NextRequest) {
       const yahooTicker = await getYahooTicker(fund.isin);
       if (yahooTicker) {
         const data = await getYahooPrice(yahooTicker);
-        if (data) return { ...base, price: data.price, previousClose: data.prevClose, changePercent: data.changePercent, currency: data.currency, name: data.name, source: 'yahoo' };
+        if (data) return { ...base, price: data.price, previousClose: data.prevClose, changePercent: data.changePercent, currency: data.currency, name: data.name, source: 'yahoo', date: data.date };
       }
 
       return base; // sin datos

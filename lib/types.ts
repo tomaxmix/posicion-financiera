@@ -6,7 +6,9 @@ export interface Fund {
   m: number;      // valor mercado actual
   inv: number;    // capital invertido
   r: number;      // rentabilidad %
-  targetPct?: number; // % objetivo en cartera
+  targetPct?: number;    // % objetivo en cartera
+  lastPriceDate?: string; // fecha del último precio publicado (YYYY-MM-DD)
+  priceSource?: string;   // 'yahoo' | 'morningstar'
 }
 
 export interface Cuentas {

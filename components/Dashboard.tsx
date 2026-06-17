@@ -72,7 +72,7 @@ export default function Dashboard() {
         if (!r || r.changePercent === null) return f;
         const newM = f.m * (1 + r.changePercent / 100);
         updated++;
-        return { ...f, m: parseFloat(newM.toFixed(2)), r: f.inv > 0 ? (newM - f.inv) / f.inv * 100 : 0 };
+        return { ...f, m: parseFloat(newM.toFixed(2)), r: f.inv > 0 ? (newM - f.inv) / f.inv * 100 : 0, lastPriceDate: r.date || todayStr(), priceSource: r.source };
       });
 
       // Actualizar fondos de los hijos
@@ -138,14 +138,21 @@ export default function Dashboard() {
           <button style={S.btn} onClick={() => setModal('inversiones')}>↑ Inversiones</button>
           <button style={S.btn} onClick={() => setModal('add')}>+ Fondo</button>
           <button style={S.btn} onClick={addSnapshot} title="Guardar foto del patrimonio en este momento">📌 Snapshot</button>
-          <button
-            onClick={updateMarketPrices}
-            disabled={updatingPrices}
-            title="Actualizar valoración de fondos con precios de mercado"
-            style={{ ...S.btn, color: updatingPrices ? '#475569' : '#10b981', borderColor: '#10b98133', opacity: updatingPrices ? 0.6 : 1 }}
-          >
-            {updatingPrices ? '⟳ Actualizando…' : priceMsg ?? '⟳ Precios'}
-          </button>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+            <button
+              onClick={updateMarketPrices}
+              disabled={updatingPrices}
+              title="Actualizar valoración de fondos con precios de mercado"
+              style={{ ...S.btn, color: updatingPrices ? '#475569' : '#10b981', borderColor: '#10b98133', opacity: updatingPrices ? 0.6 : 1 }}
+            >
+              {updatingPrices ? '⟳ Actualizando…' : priceMsg ?? '⟳ Precios'}
+            </button>
+            {data.lastUpd && (
+              <span style={{ fontSize: 9, color: '#334155', letterSpacing: '0.04em' }}>
+                última actualización: {data.lastUpd}
+              </span>
+            )}
+          </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 8, paddingLeft: 8, borderLeft: '1px solid #1f2937' }}>
             {user?.photoURL && (
               <img
