@@ -169,10 +169,10 @@ export default function MorningstarTab({ funds, onAddFund }: Props) {
               m: 0, inv: 0, r: 0,
             };
 
-            // Búsqueda en Morningstar ES por ISIN (más fiable que SecId inventado por Claude)
+            // Google search con site:morningstar.es — fiable y lleva al fondo correcto
             const mstarUrl = r.isin
-              ? `https://www.morningstar.es/es/funds/SecuritySearchResults.aspx?search=${r.isin}`
-              : `https://www.morningstar.es/es/funds/SecuritySearchResults.aspx?search=${encodeURIComponent(r.name)}`;
+              ? `https://www.google.com/search?q=${r.isin}+site:morningstar.es`
+              : `https://www.google.com/search?q=${encodeURIComponent(r.name)}+site:morningstar.es`;
 
             return (
               <div key={cardKey} style={{ ...S.card, marginBottom: 8, padding: 0, overflow: 'hidden', borderColor: inPortfolio ? '#3b82f633' : isExpanded ? '#a78bfa44' : '#1f2937' }}>
@@ -236,7 +236,7 @@ export default function MorningstarTab({ funds, onAddFund }: Props) {
                         rel="noopener noreferrer"
                         style={{ fontSize: 10, color: '#a78bfa', textDecoration: 'none', fontWeight: 600, whiteSpace: 'nowrap' }}
                       >
-                        ⭐ Ver en Morningstar ↗
+                        🔍 Buscar en Morningstar ↗
                       </a>
                     )}
                   </div>
