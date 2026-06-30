@@ -15,12 +15,13 @@ interface Props {
   onSaveAlerts:(alerts: Alert[]) => void;
   onSaveRecurring:(r: RecurringContribution[]) => void;
   onAddFund?:  (fund: Fund) => void;
+  onSaveFunds?: (funds: Fund[]) => void;
 }
 
 const TYPE_COLOR: Record<string, string> = { compra: '#10b981', venta: '#ef4444', traspaso: '#3b82f6' };
 const TYPE_LABEL: Record<string, string> = { compra: '↑ Compra', venta: '↓ Venta', traspaso: '⇄ Traspaso' };
 
-export default function OperativaTab({ operations, alerts, funds, recurring, onSaveOps, onSaveAlerts, onSaveRecurring, onAddFund }: Props) {
+export default function OperativaTab({ operations, alerts, funds, recurring, onSaveOps, onSaveAlerts, onSaveRecurring, onAddFund, onSaveFunds }: Props) {
   const [sub,   setSub]   = useState<'ops' | 'alertas' | 'sim' | 'programadas'>('ops');
   const [modal, setModal] = useState<null | 'addOp' | 'addAlert' | 'addRecurring'>(null);
 
@@ -46,34 +47,74 @@ export default function OperativaTab({ operations, alerts, funds, recurring, onS
 
   const addOp = () => {
     if (!newOp.amount) return;
-    const from = newOp.type === 'traspaso'
+    const amt = parseFloat(String(newOp.amount)) || 0;
+
+    const fromName = newOp.type === 'traspaso'
       ? (newOp.fundFrom === '__custom' ? fromCustom : (newOp.fundFrom ? fundName(newOp.fundFrom) : ''))
       : undefined;
-    const to = newOp.type === 'traspaso'
+    const toName = newOp.type === 'traspaso'
       ? (newOp.fundTo === '__custom' ? toCustom : (newOp.fundTo ? fundName(newOp.fundTo) : ''))
       : (newOp.fundTo === '__custom' ? toCustom : (newOp.fundTo ? fundName(newOp.fundTo) : ''));
 
-    const amt = parseFloat(String(newOp.amount)) || 0;
+    // Actualizar fondos en cartera según el tipo de operación
+    if (onSaveFunds) {
+      let updatedFunds = [...funds];
 
-    // Si es compra con fondo nuevo, añadirlo a la cartera
-    if (newOp.type === 'compra' && newOp.fundTo === '__custom' && toCustom && onAddFund) {
-      onAddFund({
-        id:   'F_' + Date.now(),
-        isin:  toCustomIsin.trim().toUpperCase(),
-        short: toCustom.trim(),
-        type:  'RV',
-        m:     amt,
-        inv:   amt,
-        r:     0,
-      });
+      if (newOp.type === 'compra') {
+        if (newOp.fundTo === '__custom' && toCustom) {
+          // Fondo nuevo: añadir a cartera
+          updatedFunds = [...updatedFunds, {
+            id: 'F_' + Date.now(), isin: toCustomIsin.trim().toUpperCase(),
+            short: toCustom.trim(), type: 'RV', m: amt, inv: amt, r: 0,
+          }];
+        } else if (newOp.fundTo) {
+          // Fondo existente: sumar importe
+          updatedFunds = updatedFunds.map(f =>
+            f.id === newOp.fundTo
+              ? { ...f, m: f.m + amt, inv: f.inv + amt, r: f.inv + amt > 0 ? (f.m + amt - (f.inv + amt)) / (f.inv + amt) * 100 : 0 }
+              : f
+          );
+        }
+      } else if (newOp.type === 'venta' && newOp.fundTo) {
+        updatedFunds = updatedFunds.map(f =>
+          f.id === newOp.fundTo
+            ? { ...f, m: Math.max(0, f.m - amt), inv: Math.max(0, f.inv - amt) }
+            : f
+        );
+      } else if (newOp.type === 'traspaso') {
+        // Reducir fondo origen
+        if (newOp.fundFrom && newOp.fundFrom !== '__custom') {
+          updatedFunds = updatedFunds.map(f => {
+            if (f.id !== newOp.fundFrom) return f;
+            const newM   = Math.max(0, f.m - amt);
+            const newInv = Math.max(0, f.inv - amt);
+            return { ...f, m: newM, inv: newInv, r: newInv > 0 ? (newM - newInv) / newInv * 100 : 0 };
+          });
+        }
+        // Añadir/actualizar fondo destino
+        if (newOp.fundTo === '__custom' && toCustom) {
+          updatedFunds = [...updatedFunds, {
+            id: 'F_' + Date.now(), isin: toCustomIsin.trim().toUpperCase(),
+            short: toCustom.trim(), type: 'RV', m: amt, inv: amt, r: 0,
+          }];
+        } else if (newOp.fundTo && newOp.fundTo !== '__custom') {
+          updatedFunds = updatedFunds.map(f =>
+            f.id === newOp.fundTo
+              ? { ...f, m: f.m + amt, inv: f.inv + amt, r: f.inv + amt > 0 ? (f.m + amt - (f.inv + amt)) / (f.inv + amt) * 100 : 0 }
+              : f
+          );
+        }
+      }
+
+      onSaveFunds(updatedFunds);
     }
 
     onSaveOps([{
       id: 'OP_' + Date.now(),
       date: newOp.date || todayStr(),
       type: newOp.type as Operation['type'],
-      fundFrom: from,
-      fundTo:   to,
+      fundFrom: fromName,
+      fundTo:   toName,
       amount:   amt,
       notes:    newOp.notes,
     }, ...operations]);

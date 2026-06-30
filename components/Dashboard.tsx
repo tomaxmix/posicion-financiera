@@ -248,6 +248,7 @@ export default function Dashboard() {
             onSaveAlerts={setAlerts}
             onSaveRecurring={setRecurring}
             onAddFund={f => setFunds([...funds, f])}
+            onSaveFunds={setFunds}
           />
         )}
       </div>
