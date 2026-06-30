@@ -14,19 +14,22 @@ interface Props {
   onSaveOps:   (ops: Operation[]) => void;
   onSaveAlerts:(alerts: Alert[]) => void;
   onSaveRecurring:(r: RecurringContribution[]) => void;
+  onAddFund?:  (fund: Fund) => void;
 }
 
 const TYPE_COLOR: Record<string, string> = { compra: '#10b981', venta: '#ef4444', traspaso: '#3b82f6' };
 const TYPE_LABEL: Record<string, string> = { compra: '↑ Compra', venta: '↓ Venta', traspaso: '⇄ Traspaso' };
 
-export default function OperativaTab({ operations, alerts, funds, recurring, onSaveOps, onSaveAlerts, onSaveRecurring }: Props) {
+export default function OperativaTab({ operations, alerts, funds, recurring, onSaveOps, onSaveAlerts, onSaveRecurring, onAddFund }: Props) {
   const [sub,   setSub]   = useState<'ops' | 'alertas' | 'sim' | 'programadas'>('ops');
   const [modal, setModal] = useState<null | 'addOp' | 'addAlert' | 'addRecurring'>(null);
 
   /* ── Estado formulario operación ── */
   const [newOp, setNewOp] = useState<Partial<Operation>>({ type: 'compra', date: todayStr() });
-  const [fromCustom, setFromCustom] = useState('');
-  const [toCustom,   setToCustom]   = useState('');
+  const [fromCustom,     setFromCustom]     = useState('');
+  const [toCustom,       setToCustom]       = useState('');
+  const [fromCustomIsin, setFromCustomIsin] = useState('');
+  const [toCustomIsin,   setToCustomIsin]   = useState('');
 
   /* ── Estado formulario alerta ── */
   const [newAlert, setNewAlert] = useState({ fundId: '', threshold: '5' });
@@ -50,17 +53,32 @@ export default function OperativaTab({ operations, alerts, funds, recurring, onS
       ? (newOp.fundTo === '__custom' ? toCustom : (newOp.fundTo ? fundName(newOp.fundTo) : ''))
       : (newOp.fundTo === '__custom' ? toCustom : (newOp.fundTo ? fundName(newOp.fundTo) : ''));
 
+    const amt = parseFloat(String(newOp.amount)) || 0;
+
+    // Si es compra con fondo nuevo, añadirlo a la cartera
+    if (newOp.type === 'compra' && newOp.fundTo === '__custom' && toCustom && onAddFund) {
+      onAddFund({
+        id:   'F_' + Date.now(),
+        isin:  toCustomIsin.trim().toUpperCase(),
+        short: toCustom.trim(),
+        type:  'RV',
+        m:     amt,
+        inv:   amt,
+        r:     0,
+      });
+    }
+
     onSaveOps([{
       id: 'OP_' + Date.now(),
       date: newOp.date || todayStr(),
       type: newOp.type as Operation['type'],
       fundFrom: from,
       fundTo:   to,
-      amount:   parseFloat(String(newOp.amount)) || 0,
+      amount:   amt,
       notes:    newOp.notes,
     }, ...operations]);
     setNewOp({ type: 'compra', date: todayStr() });
-    setFromCustom(''); setToCustom('');
+    setFromCustom(''); setToCustom(''); setFromCustomIsin(''); setToCustomIsin('');
     setModal(null);
   };
 
@@ -261,17 +279,30 @@ export default function OperativaTab({ operations, alerts, funds, recurring, onS
                 <FundSelect label="Fondo destino" value={newOp.fundTo || ''} onChange={v => setNewOp(p => ({ ...p, fundTo: v }))} exclude={newOp.fundFrom} />
               </div>
               {newOp.fundFrom === '__custom' && (
-                <div style={{ marginBottom: 14 }}><label style={S.lbl}>Nombre fondo origen</label><input style={S.inp} type="text" value={fromCustom} onChange={e => setFromCustom(e.target.value)} placeholder="Nombre del fondo..." /></div>
+                <div style={{ marginBottom: 14 }}>
+                  <label style={S.lbl}>Nombre fondo origen</label>
+                  <input style={S.inp} type="text" value={fromCustom} onChange={e => setFromCustom(e.target.value)} placeholder="Nombre del fondo..." />
+                  <input style={{ ...S.inp, marginTop: 8 }} type="text" value={fromCustomIsin} onChange={e => setFromCustomIsin(e.target.value)} placeholder="ISIN (opcional, ej: IE00B4L5Y983)" />
+                </div>
               )}
               {newOp.fundTo === '__custom' && (
-                <div style={{ marginBottom: 14 }}><label style={S.lbl}>Nombre fondo destino</label><input style={S.inp} type="text" value={toCustom} onChange={e => setToCustom(e.target.value)} placeholder="Nombre del fondo..." /></div>
+                <div style={{ marginBottom: 14 }}>
+                  <label style={S.lbl}>Nombre fondo destino</label>
+                  <input style={S.inp} type="text" value={toCustom} onChange={e => setToCustom(e.target.value)} placeholder="Nombre del fondo..." />
+                  <input style={{ ...S.inp, marginTop: 8 }} type="text" value={toCustomIsin} onChange={e => setToCustomIsin(e.target.value)} placeholder="ISIN (opcional, ej: IE00B4L5Y983)" />
+                </div>
               )}
             </>
           ) : (
             <div style={{ marginBottom: 14 }}>
               <FundSelect label="Fondo" value={newOp.fundTo || ''} onChange={v => setNewOp(p => ({ ...p, fundTo: v }))} />
               {newOp.fundTo === '__custom' && (
-                <div style={{ marginTop: 10 }}><label style={S.lbl}>Nombre del fondo</label><input style={S.inp} type="text" value={toCustom} onChange={e => setToCustom(e.target.value)} placeholder="Nombre del fondo..." /></div>
+                <div style={{ marginTop: 10 }}>
+                  <label style={S.lbl}>Nombre del fondo</label>
+                  <input style={S.inp} type="text" value={toCustom} onChange={e => setToCustom(e.target.value)} placeholder="Nombre del fondo..." />
+                  <input style={{ ...S.inp, marginTop: 8 }} type="text" value={toCustomIsin} onChange={e => setToCustomIsin(e.target.value)} placeholder="ISIN (ej: IE00B4L5Y983)" />
+                  <div style={{ fontSize: 11, color: '#3b82f6', marginTop: 6 }}>💡 Al registrar, el fondo se añadirá automáticamente a tu cartera</div>
+                </div>
               )}
             </div>
           )}
