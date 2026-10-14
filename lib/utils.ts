@@ -28,6 +28,11 @@ export const BROKER_LABELS: Record<Broker, string> = {
 export const SOURCE_LABELS: Record<string, string> = {
   yahoo: 'Yahoo', manual: 'a mano', morningstar: 'Morningstar',
 };
+export const sourceLabel = (src?: string) => {
+  if (!src) return '';
+  if (src.startsWith('captura:')) return `captura ${BROKER_LABELS[src.slice(8) as Broker] ?? ''}`.trim();
+  return SOURCE_LABELS[src] ?? src;
+};
 
 export const COLORS_INV = [
   '#3b82f6','#f59e0b','#8b5cf6','#10b981','#ef4444',

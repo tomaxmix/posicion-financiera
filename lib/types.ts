@@ -8,10 +8,11 @@ export interface Fund {
   r: number;      // rentabilidad %
   targetPct?: number;    // % objetivo en cartera
   lastPriceDate?: string; // fecha del último precio o valor (YYYY-MM-DD)
-  priceSource?: string;   // 'yahoo' | 'manual' (antes también 'morningstar')
+  priceSource?: string;   // 'yahoo' | 'manual' | 'captura:<banco>' (antes también 'morningstar')
   refPrice?: number;      // precio de referencia: con él se valoró el fondo la última vez (ver lib/pricing.ts)
   priceKey?: string;      // de dónde sale refPrice ('yahoo:TICKER'); si cambia, la referencia ya no vale
   broker?: Broker;        // dónde está el fondo; las capturas de un banco solo revisan sus fondos
+  brokerName?: string;    // cómo lo llama el banco en sus pantallas (lo aprende el importador de capturas)
 }
 
 export interface Cuentas {
@@ -134,4 +135,20 @@ export interface PriceQuote {
   key: string | null;     // identidad del precio, p. ej. 'yahoo:ESIH.DE'
   stale: boolean;         // el precio tiene más de 10 días
   note?: string;          // por qué no hay precio
+}
+
+/* Una posición leída de una captura del banco (respuesta de /api/captura) */
+export interface CaptureRow {
+  image: number;              // nº de captura, empezando en 1
+  platform: Broker | 'otra';  // banco reconocido en la captura
+  section: string;            // sección visible: 'Renta variable', 'Planes', 'Cuenta de valores'…
+  name: string;               // nombre tal como aparece (puede venir truncado)
+  code: string | null;        // ISIN o código visible (p. ej. N5459)
+  value: number;              // valor actual
+  invested: number;           // capital invertido (si la captura no lo muestra: valor − ganancia)
+  gain: number;               // ganancia, con signo
+  pct: number | null;         // rentabilidad %, con signo
+  matchId: string | null;     // fondo de la app que corresponde
+  matchBy: 'codigo' | 'nombre' | 'ia' | null;
+  checks: string[];           // problemas detectados; vacío = las cifras cuadran
 }

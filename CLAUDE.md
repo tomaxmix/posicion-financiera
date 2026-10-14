@@ -54,6 +54,7 @@ Because the document is live family data with real balances, changing a field na
 | `lib/utils.ts` | `fmt` / `fmt2` / `fmtPct` (es-ES), `todayStr()` (DD/MM/YYYY), `todayISO()` (YYYY-MM-DD), `COLORS_INV`, `TYPE_LABELS`, `TYPE_COLORS`, `SOURCE_LABELS` |
 | `lib/tickers.ts` | The one ISIN → Yahoo ticker map (`YAHOO_TICKERS`), shared by both market routes, plus `findYahooTicker()` and `hasPublicPrice()` |
 | `lib/pricing.ts` | Reference-price valuation (`applyQuote`, `markManual`, `MAX_JUMP`) — see "Price updates" |
+| `lib/captura.ts` / `lib/captura-check.ts` | Screenshot importer: browser side (image prep, `applyCapture`) / server side (`checkCaptureRows`) — see "Screenshot importer" |
 | `hooks/useUserData.ts` | Loads from Firestore on auth, exposes typed async setters, `loaded` flag |
 | `contexts/AuthContext.tsx` | Google Sign-In + hardcoded email allowlist |
 | `components/Dashboard.tsx` | Root: auth gate, header (snapshot + price update), tab routing, AportacionesBanner |
@@ -89,6 +90,7 @@ Each tab lives in `components/<name>/<Name>Tab.tsx`:
 | `morningstar/route.ts` | POST. Claude Haiku (`claude-haiku-4-5-20251001`) returns structured fund metadata as JSON from model knowledge — not a real Morningstar query, which Cloudflare blocks. Enriched with Yahoo 1Y prices. `MorningstarTab` links out via a Google `site:morningstar.es` search, because constructed Morningstar URLs 404. |
 | `news/route.ts` | GET. **No Claude, no API key** — fetches 11 financial RSS feeds (Bloomberg, Reuters, FT, Expansión, Cinco Días, Rankia…), scores each item against a `KEYWORDS` list built from Tomás's holdings, dedupes by title prefix and returns the top 20. |
 | `claude/route.ts` | POST with `type`: `auto_resumen` (daily portfolio + news briefing), `portfolio` (full analysis), `news_impact`. Model `claude-opus-4-5`. All prompts are in Spanish and address Tomás directly. |
+| `captura/route.ts` | POST `{ images, funds }`. Claude Sonnet 5.5 (`claude-sonnet-5-5`, effort `medium`) reads bank screenshots with structured outputs (`output_config.format` JSON schema, no zod) and returns `CaptureRow[]` after `checkCaptureRows()`. `maxDuration = 120`. Never writes anything. |
 | `explorar/route.ts` | POST. Claude (`claude-opus-4-5`) with the **MyInvestor remote MCP server** (`https://mcp.myinvestor.es/mcp`, beta `mcp-client-2025-04-04`) so it can search the real ~2.300-fund catalogue. Regex-extracts name+ISIN pairs from the reply so the UI can offer "add to portfolio". |
 
 ### Price updates (the `⟳ Precios` button)
@@ -102,6 +104,18 @@ Valuation uses a **reference price** (`lib/pricing.ts`). Each fund/child fund st
 - **Firestore rejects `undefined` field values** — that is why `markManual` deletes keys instead of setting them to `undefined`, and why `applyQuote` only sets `lastPriceDate` when the quote has a date.
 
 If a fund stops moving, check its ticker in `lib/tickers.ts` first: verify it on Yahoo (fresh `regularMarketTime`, EUR currency). The Inversiones tab paints price dates older than 10 days in amber.
+
+### Screenshot importer (`📷 Captura` button)
+
+`components/modales/ModalCaptura.tsx` → `/api/captura` → review screen → `applyCapture()`. Nothing is saved until Tomás ticks rows and presses "Aplicar".
+
+- **Supported screens**: MyInvestor fund list and pension-plan screen, CaixaBank "Mis fondos", Trade Republic "Tu cartera". The system prompt in `captura/route.ts` encodes each one's traps: MyInvestor marks losses only with ↓ on the %; the big block on the MyInvestor plans screen is a total, not a row; CaixaBank writes amounts with a decimal comma but the % with a decimal point; Trade Republic's "No realizado" column is **today's** move, the total gain is the last "Ganancia" pair.
+- **Validation** (`lib/captura-check.ts`): `invested` comes from the screen (CaixaBank) or as `value − gain`; then `invested + gain ≈ value` (±0.03 €) and `gain / invested ≈ pct` (±0.06 pp). A misread digit or a lost sign fails this and the row arrives with `checks` and unticked.
+- **Matching** priority: exact code (`isin`, e.g. `N5459`) → `brokerName` learned on a previous import for that bank → Claude's `matchId`. Rows from an unrecognised screen (`platform: 'otra'`, e.g. a screenshot of this app) are never auto-matched, so they can't collide with good rows. Duplicate targets and a fund saved under another bank are flagged.
+- **Measured** (Oct 2026, 4 real screenshots: MyInvestor funds + plans, CaixaBank, Trade Republic): 15/15 positions exact to the cent in three runs, ~9–12 s per request.
+- **Applying**: `m` and `inv` from the screen, `r` recalculated, `broker` and `brokerName` learned, `priceSource: 'captura:<bank>'`, reference price cleared via `markManual()` (so the next ⟳ Precios press calibrates). Unknown rows can be added as new funds (ISIN typed in the review screen).
+- Images are downscaled in the browser to 2000 px / JPEG 0.88 and capped at ~4 MB per request (Vercel rejects bodies over ~4.5 MB). Up to 6 per request.
+- Children's Indexa funds are out of scope.
 
 ### Date formats (easy to get wrong)
 
@@ -131,7 +145,7 @@ NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
 NEXT_PUBLIC_FIREBASE_APP_ID
 NEXT_PUBLIC_OWNER_EMAIL   # Tomás's Gmail — part of the auth allowlist
-ANTHROPIC_API_KEY         # used by claude/, explorar/, morningstar/
+ANTHROPIC_API_KEY         # used by claude/, explorar/, morningstar/, captura/
 ```
 
 `.env.local` also still carries `NEWS_API_KEY`, left over from when `news/route.ts` used an API; it is no longer read anywhere.

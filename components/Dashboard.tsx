@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserData } from '@/hooks/useUserData';
 import { todayStr, fmtPct } from '@/lib/utils';
-import { Operation, RecurringContribution, PriceQuote } from '@/lib/types';
+import { Fund, Operation, RecurringContribution, PriceQuote } from '@/lib/types';
 import { applyQuote, MAX_JUMP, Priced } from '@/lib/pricing';
 import PatrimonioTab    from './patrimonio/PatrimonioTab';
 import InversionesTab   from './inversiones/InversionesTab';
@@ -15,6 +15,7 @@ import OperativaTab     from './operativa/OperativaTab';
 import ModalesGlobales  from './modales/ModalesGlobales';
 import AportacionesBanner from './shared/AportacionesBanner';
 import ExplorarTab from './explorar/ExplorarTab';
+import ModalCaptura from './modales/ModalCaptura';
 
 const TABS = [
   { id: 'patrimonio',  label: 'Patrimonio'  },
@@ -45,13 +46,21 @@ export default function Dashboard() {
   const cuentasTotal  = Object.values(data.cuentas).reduce((s, v) => s + (v || 0), 0);
   const patrimonioLiq = cuentasTotal + invTotal;
 
-  const addSnapshot = async () => {
+  const addSnapshot = async (fs: Fund[] = funds) => {
+    const inv = fs.reduce((s, f) => s + (f.m || 0), 0);
     await setHistory([...history, {
       date:       todayStr(),
-      inv:        parseFloat(invTotal.toFixed(2)),
+      inv:        parseFloat(inv.toFixed(2)),
       cuentas:    parseFloat(cuentasTotal.toFixed(2)),
-      patrimonio: parseFloat(patrimonioLiq.toFixed(2)),
+      patrimonio: parseFloat((cuentasTotal + inv).toFixed(2)),
     }]);
+  };
+
+  /* Aplicar lo aprobado en el importador de capturas */
+  const handleCaptureApply = async (newFunds: Fund[], snapshot: boolean) => {
+    await setFunds(newFunds);
+    await setData({ ...data, lastUpd: todayStr() });
+    if (snapshot) await addSnapshot(newFunds);
   };
 
   /* Actualizar precios de mercado (cartera principal + fondos de los hijos).
@@ -158,8 +167,9 @@ export default function Dashboard() {
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
           <button style={S.btn} onClick={() => setModal('patrimonio')}>↑ Patrimonio</button>
           <button style={S.btn} onClick={() => setModal('inversiones')}>↑ Inversiones</button>
+          <button style={S.btn} onClick={() => setModal('captura')} title="Actualizar fondos con capturas de tus bancos">📷 Captura</button>
           <button style={S.btn} onClick={() => setModal('add')}>+ Fondo</button>
-          <button style={S.btn} onClick={addSnapshot} title="Guardar foto del patrimonio en este momento">📌 Snapshot</button>
+          <button style={S.btn} onClick={() => addSnapshot()} title="Guardar foto del patrimonio en este momento">📌 Snapshot</button>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
             <button
               onClick={updateMarketPrices}
@@ -273,6 +283,10 @@ export default function Dashboard() {
           />
         )}
       </div>
+
+      {modal === 'captura' && (
+        <ModalCaptura funds={funds} onClose={() => setModal(null)} onApply={handleCaptureApply} />
+      )}
 
       <ModalesGlobales
         modal={modal}

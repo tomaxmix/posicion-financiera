@@ -56,9 +56,10 @@ export function applyQuote<T extends Priced>(
   };
 }
 
-/* El valor se ha fijado a mano: se borra la referencia (sin dejar campos undefined) */
-export function markManual<T extends Priced>(fund: T, today: string): T {
-  const copy = { ...fund, priceSource: 'manual', lastPriceDate: today };
+/* El valor se ha fijado desde fuera (a mano o con una captura): se borra la
+   referencia, sin dejar campos undefined */
+export function markManual<T extends Priced>(fund: T, today: string, source = 'manual'): T {
+  const copy = { ...fund, priceSource: source, lastPriceDate: today };
   delete copy.refPrice;
   delete copy.priceKey;
   return copy;

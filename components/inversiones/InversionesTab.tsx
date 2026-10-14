@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Fund } from '@/lib/types';
 import FundChart from './FundChart';
-import { fmt2, fmtPct, COLORS_INV, SOURCE_LABELS, BROKER_LABELS } from '@/lib/utils';
+import { fmt2, fmtPct, COLORS_INV, sourceLabel, BROKER_LABELS } from '@/lib/utils';
 import { InvDonut, BarChart } from '@/components/shared/Charts';
 import AllocBars from './AllocBars';
 import Tag from '@/components/shared/Tag';
@@ -12,7 +12,7 @@ import Tag from '@/components/shared/Tag';
 const STALE_MS = 10 * 86_400_000;
 function priceStamp(f: Fund) {
   if (!f.lastPriceDate) return { text: '—', stale: false };
-  const src = f.priceSource ? SOURCE_LABELS[f.priceSource] ?? f.priceSource : '';
+  const src = sourceLabel(f.priceSource);
   return {
     text:  src ? `${f.lastPriceDate} · ${src}` : f.lastPriceDate,
     stale: Date.now() - Date.parse(f.lastPriceDate) > STALE_MS,
