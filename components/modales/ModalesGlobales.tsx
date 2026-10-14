@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { Fund, FinancialData, Broker } from '@/lib/types';
-import { TYPE_LABELS, BROKER_LABELS, todayStr, todayISO } from '@/lib/utils';
+import { TYPE_LABELS, BROKER_LABELS, todayStr, todayISO, fmt } from '@/lib/utils';
 import { SUGGESTED_BROKERS } from '@/lib/defaults';
 import { markManual } from '@/lib/pricing';
-import { S } from '@/lib/styles';
+import { S, subTabBtn } from '@/lib/styles';
 import Modal from '@/components/shared/Modal';
 
 interface Props {
@@ -51,6 +51,7 @@ function withBroker<T extends Fund>(f: T, broker: string): T {
 export default function ModalesGlobales({ modal, onClose, funds, data, onSaveFunds, onSaveData, onAddFund }: Props) {
   const [updVals, setUpdVals] = useState<Record<string, string>>({});
   const [newF, setNewF] = useState({ isin: '', short: '', type: 'RF' as Fund['type'], m: '', inv: '', broker: '' });
+  const [bankFilter, setBankFilter] = useState('all');   // filtro por banco en "Actualizar inversiones"
 
   /* Poblar el formulario al abrir el modal */
   useEffect(() => {
@@ -137,33 +138,71 @@ export default function ModalesGlobales({ modal, onClose, funds, data, onSaveFun
   );
 
   /* ── Modal Inversiones ── */
-  if (modal === 'inversiones') return (
-    <Modal title="Actualizar inversiones" onClose={onClose}>
-      {funds.map(f => (
-        <div key={f.id} style={{ borderBottom: '1px solid #1f2937', padding: '10px 0' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#e2e8f0' }}>{f.short}</div>
-            <BrokerSelect value={updVals[f.id + '_broker'] ?? ''} onChange={set(f.id + '_broker')}
-              style={{ width: 'auto', padding: '4px 8px', fontSize: 12 }} />
+  if (modal === 'inversiones') {
+    // Grupo de cada fondo: el banco guardado o la sugerencia. Se calcula con lo
+    // que había al abrir, para que un fondo no salte de grupo mientras se edita.
+    const groupOf = (f: Fund): string => f.broker ?? SUGGESTED_BROKERS[f.isin] ?? '';
+    const groups = [...Object.keys(BROKER_LABELS), '']
+      .map(key => ({
+        key,
+        label: key ? BROKER_LABELS[key as Broker] : 'Sin asignar',
+        funds: funds.filter(f => groupOf(f) === key),
+      }))
+      .filter(g => g.funds.length > 0);
+    const active  = groups.some(g => g.key === bankFilter) ? bankFilter : 'all';
+    const visible = active === 'all' ? groups : groups.filter(g => g.key === active);
+
+    const fundRow = (f: Fund) => (
+      <div key={f.id} style={{ borderBottom: '1px solid #1f2937', padding: '10px 0' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#e2e8f0' }}>{f.short}</div>
+          <BrokerSelect value={updVals[f.id + '_broker'] ?? ''} onChange={set(f.id + '_broker')}
+            style={{ width: 'auto', padding: '4px 8px', fontSize: 12 }} />
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div>
+            <label style={S.lbl}>Valor mercado (€)</label>
+            <input style={S.inp} type="number" step="0.01" value={updVals[f.id + '_m'] ?? ''} onChange={e => setUpdVals(p => ({ ...p, [f.id + '_m']: e.target.value }))} />
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <div>
-              <label style={S.lbl}>Valor mercado (€)</label>
-              <input style={S.inp} type="number" step="0.01" value={updVals[f.id + '_m'] ?? ''} onChange={e => setUpdVals(p => ({ ...p, [f.id + '_m']: e.target.value }))} />
-            </div>
-            <div>
-              <label style={S.lbl}>Capital invertido (€)</label>
-              <input style={S.inp} type="number" step="0.01" value={updVals[f.id + '_inv'] ?? ''} onChange={e => setUpdVals(p => ({ ...p, [f.id + '_inv']: e.target.value }))} />
-            </div>
+          <div>
+            <label style={S.lbl}>Capital invertido (€)</label>
+            <input style={S.inp} type="number" step="0.01" value={updVals[f.id + '_inv'] ?? ''} onChange={e => setUpdVals(p => ({ ...p, [f.id + '_inv']: e.target.value }))} />
           </div>
         </div>
-      ))}
-      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: '1rem' }}>
-        <button style={S.btn} onClick={onClose}>Cancelar</button>
-        <button style={S.btnG} onClick={saveInv}>Guardar todo</button>
       </div>
-    </Modal>
-  );
+    );
+
+    return (
+      <Modal title="Actualizar inversiones" onClose={onClose}>
+        {/* Filtro por banco */}
+        <div style={{ ...S.subTabs, width: '100%' }}>
+          {[{ key: 'all', label: 'Todos', n: funds.length }, ...groups.map(g => ({ key: g.key, label: g.label, n: g.funds.length }))].map(t => (
+            <button key={t.key || 'none'} style={subTabBtn(active === t.key)} onClick={() => setBankFilter(t.key)}>
+              {t.label} <span style={{ opacity: 0.5 }}>{t.n}</span>
+            </button>
+          ))}
+        </div>
+
+        {visible.map(g => (
+          <div key={g.key || 'none'} style={{ marginBottom: '0.75rem' }}>
+            <div style={{ ...S.sec, display: 'flex', justifyContent: 'space-between', marginTop: '0.75rem', marginBottom: 0 }}>
+              <span>{g.label}</span>
+              <span style={{ color: '#475569' }}>{fmt(g.funds.reduce((sum, f) => sum + (f.m || 0), 0))} €</span>
+            </div>
+            {g.funds.map(fundRow)}
+          </div>
+        ))}
+
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', alignItems: 'center', marginTop: '1rem' }}>
+          {active !== 'all' && (
+            <span style={{ fontSize: 11, color: '#475569', marginRight: 'auto' }}>Se guardan todos los fondos, también los de otros bancos</span>
+          )}
+          <button style={S.btn} onClick={onClose}>Cancelar</button>
+          <button style={S.btnG} onClick={saveInv}>Guardar todo</button>
+        </div>
+      </Modal>
+    );
+  }
 
   /* ── Modal Añadir fondo ── */
   if (modal === 'add') return (
