@@ -11,6 +11,7 @@ export interface Fund {
   priceSource?: string;   // 'yahoo' | 'manual' (antes también 'morningstar')
   refPrice?: number;      // precio de referencia: con él se valoró el fondo la última vez (ver lib/pricing.ts)
   priceKey?: string;      // de dónde sale refPrice ('yahoo:TICKER'); si cambia, la referencia ya no vale
+  broker?: Broker;        // dónde está el fondo; las capturas de un banco solo revisan sus fondos
 }
 
 export interface Cuentas {
@@ -19,6 +20,9 @@ export interface Cuentas {
   traderepublic: number;
   myinvestor: number;
 }
+
+/* Banco o bróker donde está un fondo: mismas claves que Cuentas */
+export type Broker = keyof Cuentas;
 
 export interface Deudas {
   hipoteca: number;

@@ -41,12 +41,14 @@ Firestore (shared/familia-ferrandiz)
 
 Because the document is live family data with real balances, changing a field name or shape in `lib/types.ts` silently orphans whatever is already stored. Migrate (as `HijosTab` does) rather than rename.
 
+**The real portfolio is only in Firestore.** `lib/defaults.ts` is a seed snapshot from May 2026: funds added later through the UI (e.g. Horos Value Internacional) and every current amount exist only in the database, never in the code or git history. Don't infer what Tomás holds from `defaults.ts` — ask, or work from data he provides.
+
 ### Key files
 
 | File | Purpose |
 |------|---------|
-| `lib/types.ts` | All interfaces (`Fund`, `Child`, `RecurringContribution`, …). Fund fields are terse: `m` = market value, `inv` = invested capital, `r` = return %. |
-| `lib/defaults.ts` | Seed fund/child/history data (real figures) used on first load and for migration |
+| `lib/types.ts` | All interfaces (`Fund`, `Child`, `RecurringContribution`, …). Fund fields are terse: `m` = market value, `inv` = invested capital, `r` = return %. `Fund.broker` (optional) is where the fund is held; `Broker` reuses the `Cuentas` keys (`myinvestor`, `caixabank`, `traderepublic`, `arquia`). |
+| `lib/defaults.ts` | Seed fund/child/history data (May 2026 figures) for first load and migration, plus `SUGGESTED_BROKERS` (ISIN → bank, pre-fills the bank dropdown) |
 | `lib/firestore.ts` | Every Firestore read/write — one `setDoc(..., { merge: true })` per slice |
 | `lib/styles.ts` | Shared inline-style constants (`S.card`, `S.inp`, `S.btn`, `subTabBtn`, `thStyle`…) — use these instead of duplicating styles |
 | `lib/utils.ts` | `fmt` / `fmt2` / `fmtPct` (es-ES), `todayStr()` (DD/MM/YYYY), `todayISO()` (YYYY-MM-DD), `COLORS_INV`, `TYPE_LABELS`, `TYPE_COLORS`, `SOURCE_LABELS` |

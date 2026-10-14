@@ -1,4 +1,4 @@
-import { Fund, FinancialData, HistoryEntry, Child } from './types';
+import { Fund, FinancialData, HistoryEntry, Child, Broker } from './types';
 
 const RAW_FUNDS = [
   {id:'F1', isin:'IE00BFZMJT78', short:'Neuberger Berman',   type:'RF',  m:71005.70,  inv:69269.15},
@@ -62,3 +62,23 @@ export const DEFAULT_CHILDREN: Child[] = [
     history: [],
   },
 ];
+
+/* Banco de cada fondo, según lo que contó Tomás en octubre de 2026. Solo se usa
+   para rellenar el desplegable de los fondos que aún no tienen banco guardado. */
+export const SUGGESTED_BROKERS: Record<string, Broker> = {
+  'FR0000991390': 'caixabank',      // La Française
+  'IE0031573904': 'caixabank',      // Brandes Global
+  'IE00BMW42181': 'traderepublic',  // iShares MSCI Health Care
+  'LU0380865021': 'traderepublic',  // EuroStoxx 50
+  'IE00BYX5P602': 'myinvestor',     // Fidelity MSCI World
+  'IE0031786696': 'myinvestor',     // Vanguard EM
+  'IE00BD4GTQ32': 'myinvestor',     // CB Infrastructure
+  'LU1984712320': 'myinvestor',     // Janus Henderson
+  'LU1832174962': 'myinvestor',     // Indépendance
+  'ES0146309002': 'myinvestor',     // Horos Value Internacional
+  'LU0348784041': 'myinvestor',     // Allianz Oriental
+  'LU2145461757': 'myinvestor',     // Robeco Smart Energy
+  'IE00BFZMJT78': 'myinvestor',     // Neuberger Berman
+  'LU1694789451': 'myinvestor',     // DNCA Alpha Bonds
+  'N5459':        'myinvestor',     // Plan de pensiones
+};

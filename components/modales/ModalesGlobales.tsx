@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Fund, FinancialData } from '@/lib/types';
-import { TYPE_LABELS, todayStr, todayISO } from '@/lib/utils';
+import { Fund, FinancialData, Broker } from '@/lib/types';
+import { TYPE_LABELS, BROKER_LABELS, todayStr, todayISO } from '@/lib/utils';
+import { SUGGESTED_BROKERS } from '@/lib/defaults';
 import { markManual } from '@/lib/pricing';
 import { S } from '@/lib/styles';
 import Modal from '@/components/shared/Modal';
@@ -29,9 +30,27 @@ function Field({ label, value, onChange, type = 'number', step = '0.01' }: {
   );
 }
 
+/* ── Sub-componente: desplegable de banco ('' = sin asignar) ── */
+function BrokerSelect({ value, onChange, style }: { value: string; onChange: (v: string) => void; style?: React.CSSProperties }) {
+  return (
+    <select style={{ ...S.inp, ...style }} value={value} onChange={e => onChange(e.target.value)}>
+      <option value="">— sin asignar —</option>
+      {Object.entries(BROKER_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+    </select>
+  );
+}
+
+/* Guarda el banco en el fondo, o lo quita si queda sin asignar (Firestore no admite undefined) */
+function withBroker<T extends Fund>(f: T, broker: string): T {
+  const copy = { ...f };
+  if (broker) copy.broker = broker as Broker;
+  else delete copy.broker;
+  return copy;
+}
+
 export default function ModalesGlobales({ modal, onClose, funds, data, onSaveFunds, onSaveData, onAddFund }: Props) {
   const [updVals, setUpdVals] = useState<Record<string, string>>({});
-  const [newF, setNewF] = useState({ isin: '', short: '', type: 'RF' as Fund['type'], m: '', inv: '' });
+  const [newF, setNewF] = useState({ isin: '', short: '', type: 'RF' as Fund['type'], m: '', inv: '', broker: '' });
 
   /* Poblar el formulario al abrir el modal */
   useEffect(() => {
@@ -48,7 +67,12 @@ export default function ModalesGlobales({ modal, onClose, funds, data, onSaveFun
     }
     if (modal === 'inversiones') {
       const v: Record<string, string> = {};
-      funds.forEach(f => { v[f.id + '_m'] = String(f.m || ''); v[f.id + '_inv'] = String(f.inv || ''); });
+      funds.forEach(f => {
+        v[f.id + '_m']   = String(f.m || '');
+        v[f.id + '_inv'] = String(f.inv || '');
+        // Banco guardado o, si aún no tiene, la sugerencia (se guarda al pulsar "Guardar todo")
+        v[f.id + '_broker'] = f.broker ?? SUGGESTED_BROKERS[f.isin] ?? '';
+      });
       setUpdVals(v);
     }
   }, [modal]); // eslint-disable-line
@@ -72,7 +96,7 @@ export default function ModalesGlobales({ modal, onClose, funds, data, onSaveFun
       const inv = updVals[f.id + '_inv'] === '' ? f.inv : parseFloat(updVals[f.id + '_inv']) || 0;
       // Si cambia el valor, manda el dato manual: se borra el precio de referencia
       const base = m !== f.m ? markManual(f, todayISO()) : f;
-      return { ...base, m, inv, r: inv > 0 ? (m - inv) / inv * 100 : 0 };
+      return withBroker({ ...base, m, inv, r: inv > 0 ? (m - inv) / inv * 100 : 0 }, updVals[f.id + '_broker'] ?? '');
     });
     onSaveFunds(updated);
     onSaveData({ ...data, lastUpd: todayStr() });
@@ -82,8 +106,9 @@ export default function ModalesGlobales({ modal, onClose, funds, data, onSaveFun
   const addFund = () => {
     if (!newF.isin || !newF.short) return;
     const m = parseFloat(newF.m) || 0, inv = parseFloat(newF.inv) || 0;
-    onAddFund({ ...newF, id: 'F_' + Date.now(), m, inv, r: inv > 0 ? (m - inv) / inv * 100 : 0, priceSource: 'manual', lastPriceDate: todayISO() });
-    setNewF({ isin: '', short: '', type: 'RF', m: '', inv: '' });
+    const fund: Fund = { id: 'F_' + Date.now(), isin: newF.isin, short: newF.short, type: newF.type, m, inv, r: inv > 0 ? (m - inv) / inv * 100 : 0, priceSource: 'manual', lastPriceDate: todayISO() };
+    onAddFund(withBroker(fund, newF.broker));
+    setNewF({ isin: '', short: '', type: 'RF', m: '', inv: '', broker: '' });
     onClose();
   };
 
@@ -116,7 +141,11 @@ export default function ModalesGlobales({ modal, onClose, funds, data, onSaveFun
     <Modal title="Actualizar inversiones" onClose={onClose}>
       {funds.map(f => (
         <div key={f.id} style={{ borderBottom: '1px solid #1f2937', padding: '10px 0' }}>
-          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: '#e2e8f0' }}>{f.short}</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#e2e8f0' }}>{f.short}</div>
+            <BrokerSelect value={updVals[f.id + '_broker'] ?? ''} onChange={set(f.id + '_broker')}
+              style={{ width: 'auto', padding: '4px 8px', fontSize: 12 }} />
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <div>
               <label style={S.lbl}>Valor mercado (€)</label>
@@ -146,6 +175,10 @@ export default function ModalesGlobales({ modal, onClose, funds, data, onSaveFun
         <select style={S.inp} value={newF.type} onChange={e => setNewF(p => ({ ...p, type: e.target.value as Fund['type'] }))}>
           {Object.entries(TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
+      </div>
+      <div style={{ marginBottom: 12 }}>
+        <label style={S.lbl}>Dónde lo tienes</label>
+        <BrokerSelect value={newF.broker} onChange={v => setNewF(p => ({ ...p, broker: v }))} />
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         <div>

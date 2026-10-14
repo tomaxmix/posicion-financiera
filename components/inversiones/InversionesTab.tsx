@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Fund } from '@/lib/types';
 import FundChart from './FundChart';
-import { fmt2, fmtPct, COLORS_INV, SOURCE_LABELS } from '@/lib/utils';
+import { fmt2, fmtPct, COLORS_INV, SOURCE_LABELS, BROKER_LABELS } from '@/lib/utils';
 import { InvDonut, BarChart } from '@/components/shared/Charts';
 import AllocBars from './AllocBars';
 import Tag from '@/components/shared/Tag';
@@ -158,7 +158,9 @@ export default function InversionesTab({ funds, onDeleteFund }: Props) {
                   onClick={() => setExpandedId(isOpen ? null : f.id)}>
                   <div>
                     <div style={{ fontWeight: 600, color: '#e2e8f0', fontSize: 12 }}>{f.short}</div>
-                    <div style={{ fontSize: 10, color: '#334155', marginTop: 1 }}>{f.isin}</div>
+                    <div style={{ fontSize: 10, color: '#334155', marginTop: 1 }}>
+                      {f.isin}{f.broker ? ` · ${BROKER_LABELS[f.broker]}` : ''}
+                    </div>
                     {f.lastPriceDate && (
                       <div style={{ fontSize: 9, color: priceStamp(f).stale ? '#f59e0b' : '#1e3a5f', marginTop: 1 }}>
                         precio: {priceStamp(f).text}

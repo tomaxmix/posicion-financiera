@@ -1,3 +1,5 @@
+import { Broker } from './types';
+
 export const fmt = (n: number) =>
   new Intl.NumberFormat('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.round(n ?? 0));
 
@@ -15,6 +17,11 @@ export const todayStr = () => {
 export const todayISO = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+/* Bancos donde pueden estar los fondos, en el orden del desplegable */
+export const BROKER_LABELS: Record<Broker, string> = {
+  myinvestor: 'MyInvestor', caixabank: 'CaixaBank', traderepublic: 'Trade Republic', arquia: 'Arquia',
 };
 
 /* Etiqueta de la fuente del último precio/valor de un fondo */
