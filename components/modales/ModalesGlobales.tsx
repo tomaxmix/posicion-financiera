@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { Fund, FinancialData } from '@/lib/types';
-import { TYPE_LABELS, todayStr } from '@/lib/utils';
+import { TYPE_LABELS, todayStr, todayISO } from '@/lib/utils';
+import { markManual } from '@/lib/pricing';
 import { S } from '@/lib/styles';
 import Modal from '@/components/shared/Modal';
 
@@ -69,7 +70,9 @@ export default function ModalesGlobales({ modal, onClose, funds, data, onSaveFun
     const updated = funds.map(f => {
       const m   = updVals[f.id + '_m']   === '' ? f.m   : parseFloat(updVals[f.id + '_m'])   || 0;
       const inv = updVals[f.id + '_inv'] === '' ? f.inv : parseFloat(updVals[f.id + '_inv']) || 0;
-      return { ...f, m, inv, r: inv > 0 ? (m - inv) / inv * 100 : 0 };
+      // Si cambia el valor, manda el dato manual: se borra el precio de referencia
+      const base = m !== f.m ? markManual(f, todayISO()) : f;
+      return { ...base, m, inv, r: inv > 0 ? (m - inv) / inv * 100 : 0 };
     });
     onSaveFunds(updated);
     onSaveData({ ...data, lastUpd: todayStr() });
@@ -79,7 +82,7 @@ export default function ModalesGlobales({ modal, onClose, funds, data, onSaveFun
   const addFund = () => {
     if (!newF.isin || !newF.short) return;
     const m = parseFloat(newF.m) || 0, inv = parseFloat(newF.inv) || 0;
-    onAddFund({ ...newF, id: 'F_' + Date.now(), m, inv, r: inv > 0 ? (m - inv) / inv * 100 : 0 });
+    onAddFund({ ...newF, id: 'F_' + Date.now(), m, inv, r: inv > 0 ? (m - inv) / inv * 100 : 0, priceSource: 'manual', lastPriceDate: todayISO() });
     setNewF({ isin: '', short: '', type: 'RF', m: '', inv: '' });
     onClose();
   };

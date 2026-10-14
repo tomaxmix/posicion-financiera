@@ -11,6 +11,17 @@ export const todayStr = () => {
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
 };
 
+/* Fecha de hoy en el formato de lastPriceDate (YYYY-MM-DD), en hora local */
+export const todayISO = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+/* Etiqueta de la fuente del último precio/valor de un fondo */
+export const SOURCE_LABELS: Record<string, string> = {
+  yahoo: 'Yahoo', manual: 'a mano', morningstar: 'Morningstar',
+};
+
 export const COLORS_INV = [
   '#3b82f6','#f59e0b','#8b5cf6','#10b981','#ef4444',
   '#ec4899','#f97316','#0891b2','#84cc16','#6366f1',

@@ -3,10 +3,21 @@
 import { useState } from 'react';
 import { Fund } from '@/lib/types';
 import FundChart from './FundChart';
-import { fmt2, fmtPct, COLORS_INV } from '@/lib/utils';
+import { fmt2, fmtPct, COLORS_INV, SOURCE_LABELS } from '@/lib/utils';
 import { InvDonut, BarChart } from '@/components/shared/Charts';
 import AllocBars from './AllocBars';
 import Tag from '@/components/shared/Tag';
+
+/* Fecha y fuente del último precio/valor; ámbar si tiene más de 10 días */
+const STALE_MS = 10 * 86_400_000;
+function priceStamp(f: Fund) {
+  if (!f.lastPriceDate) return { text: '—', stale: false };
+  const src = f.priceSource ? SOURCE_LABELS[f.priceSource] ?? f.priceSource : '';
+  return {
+    text:  src ? `${f.lastPriceDate} · ${src}` : f.lastPriceDate,
+    stale: Date.now() - Date.parse(f.lastPriceDate) > STALE_MS,
+  };
+}
 
 interface Props {
   funds: Fund[];
@@ -95,6 +106,7 @@ export default function InversionesTab({ funds, onDeleteFund }: Props) {
                 <tbody>
                   {[...funds].sort((a,b) => ((b.m||0)-(b.inv||0))-((a.m||0)-(a.inv||0))).map(f => {
                     const p = (f.m||0) - (f.inv||0);
+                    const stamp = priceStamp(f);
                     return (
                       <tr key={f.id} style={{ borderBottom: '1px solid #0f172a' }}>
                         <td style={{ padding: '8px 12px', fontWeight: 600, color: '#e2e8f0' }}>{f.short}</td>
@@ -102,8 +114,8 @@ export default function InversionesTab({ funds, onDeleteFund }: Props) {
                         <td style={{ padding: '8px 12px', textAlign: 'right', color: '#e2e8f0' }}>{fmt2(f.m)} €</td>
                         <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: p >= 0 ? '#10b981' : '#ef4444' }}>{p >= 0 ? '+' : ''}{fmt2(p)} €</td>
                         <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: f.r >= 0 ? '#10b981' : '#ef4444' }}>{fmtPct(f.r)}</td>
-                        <td style={{ padding: '8px 12px', textAlign: 'right', color: '#334155', fontSize: 10, whiteSpace: 'nowrap' }}>
-                          {f.lastPriceDate ? f.lastPriceDate : '—'}
+                        <td style={{ padding: '8px 12px', textAlign: 'right', color: stamp.stale ? '#f59e0b' : '#334155', fontSize: 10, whiteSpace: 'nowrap' }}>
+                          {stamp.text}
                         </td>
                       </tr>
                     );
@@ -148,8 +160,8 @@ export default function InversionesTab({ funds, onDeleteFund }: Props) {
                     <div style={{ fontWeight: 600, color: '#e2e8f0', fontSize: 12 }}>{f.short}</div>
                     <div style={{ fontSize: 10, color: '#334155', marginTop: 1 }}>{f.isin}</div>
                     {f.lastPriceDate && (
-                      <div style={{ fontSize: 9, color: '#1e3a5f', marginTop: 1 }}>
-                        precio: {f.lastPriceDate}
+                      <div style={{ fontSize: 9, color: priceStamp(f).stale ? '#f59e0b' : '#1e3a5f', marginTop: 1 }}>
+                        precio: {priceStamp(f).text}
                       </div>
                     )}
                   </div>

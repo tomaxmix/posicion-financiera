@@ -3,8 +3,9 @@
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserData } from '@/hooks/useUserData';
-import { todayStr } from '@/lib/utils';
-import { Operation, RecurringContribution } from '@/lib/types';
+import { todayStr, fmtPct } from '@/lib/utils';
+import { Operation, RecurringContribution, PriceQuote } from '@/lib/types';
+import { applyQuote, MAX_JUMP, Priced } from '@/lib/pricing';
 import PatrimonioTab    from './patrimonio/PatrimonioTab';
 import InversionesTab   from './inversiones/InversionesTab';
 import EvolucionTab     from './evolucion/EvolucionTab';
@@ -38,6 +39,7 @@ export default function Dashboard() {
   const [modal,          setModal]         = useState<string | null>(null);
   const [updatingPrices, setUpdatingPrices]= useState(false);
   const [priceMsg,       setPriceMsg]      = useState<string | null>(null);
+  const [priceWarn,      setPriceWarn]     = useState<string | null>(null);
 
   const invTotal      = funds.reduce((s, f) => s + (f.m || 0), 0);
   const cuentasTotal  = Object.values(data.cuentas).reduce((s, v) => s + (v || 0), 0);
@@ -52,46 +54,61 @@ export default function Dashboard() {
     }]);
   };
 
-  /* Actualizar precios de mercado (cartera principal + fondos de los hijos) */
+  /* Actualizar precios de mercado (cartera principal + fondos de los hijos).
+     Se valora con el precio de referencia de cada fondo: ver lib/pricing.ts */
   const updateMarketPrices = async () => {
     setUpdatingPrices(true);
     setPriceMsg(null);
+    setPriceWarn(null);
     try {
-      // Recopilamos todos los fondos (cartera + hijos) para una sola llamada
-      const childFunds = children.flatMap(c => c.funds.map(f => ({ id: `${c.id}__${f.id}`, isin: f.isin, short: f.short, type: f.type, m: f.m })));
-      const allFunds   = [...funds.map(f => ({ id: f.id, isin: f.isin, short: f.short, type: f.type, m: f.m })), ...childFunds];
+      // Una consulta por ISIN: los dos hijos comparten los mismos fondos Vanguard
+      const allFunds = [...funds, ...children.flatMap(c => c.funds)];
+      const unique   = [...new Map(allFunds.map(f => [f.isin, { isin: f.isin, short: f.short, type: f.type }])).values()];
 
-      const res     = await fetch('/api/market', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ funds: allFunds }) });
-      const { results } = await res.json();
+      const res = await fetch('/api/market', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ funds: unique }) });
+      const { results } = await res.json() as { results: PriceQuote[] };
+      const quotes = new Map(results.map(q => [q.isin, q]));
 
-      let updated = 0;
-
-      // Actualizar cartera principal
-      const newFunds = funds.map(f => {
-        const r = results.find((x: any) => x.isin === f.isin);
-        if (!r || r.changePercent === null) return f;
-        const newM = f.m * (1 + r.changePercent / 100);
-        updated++;
-        return { ...f, m: parseFloat(newM.toFixed(2)), r: f.inv > 0 ? (newM - f.inv) / f.inv * 100 : 0, lastPriceDate: r.date || todayStr(), priceSource: r.source };
+      // Saltos de más de ±15 % desde la referencia: pueden ser reales o un dato erróneo
+      const jumps = new Map<string, string>();
+      allFunds.forEach(f => {
+        const o = applyQuote(f, quotes.get(f.isin));
+        if (o.outcome === 'jump') jumps.set(f.isin, `• ${f.short}: ${fmtPct((o.jump ?? 0) * 100)} desde el ${f.lastPriceDate ?? '—'}`);
       });
+      const force = jumps.size > 0 && confirm(
+        `Estos fondos se mueven más de un ${MAX_JUMP * 100} % desde su último precio de referencia:\n\n` +
+        [...jumps.values()].join('\n') +
+        `\n\nPuede ser real (si hace tiempo que no actualizas) o un dato erróneo de la fuente. ¿Aplicar igualmente?`
+      );
 
-      // Actualizar fondos de los hijos
-      const newChildren = children.map(c => ({
-        ...c,
-        funds: c.funds.map(f => {
-          const r = results.find((x: any) => x.isin === f.isin);
-          if (!r || r.changePercent === null) return f;
-          const newM = f.m * (1 + r.changePercent / 100);
-          updated++;
-          return { ...f, m: parseFloat(newM.toFixed(2)), r: f.inv > 0 ? (newM - f.inv) / f.inv * 100 : 0 };
-        }),
-      }));
-
-      await setFunds(newFunds);
-      await setChildren(newChildren);
+      const tally = { updated: 0, calibrated: 0, skipped: 0 };
+      function run<T extends Priced & { isin: string }>(f: T): T {
+        const { fund, outcome } = applyQuote(f, quotes.get(f.isin), force);
+        if (outcome === 'updated')    tally.updated++;
+        if (outcome === 'calibrated') tally.calibrated++;
+        if (outcome === 'jump')       tally.skipped++;
+        return fund;
+      }
+      await setFunds(funds.map(run));
+      await setChildren(children.map(c => ({ ...c, funds: c.funds.map(run) })));
       await setData({ ...data, lastUpd: todayStr() });
-      setPriceMsg(`✓ ${updated} fondos actualizados`);
-      setTimeout(() => setPriceMsg(null), 4000);
+
+      const parts = [`✓ ${tally.updated} actualizados`];
+      if (tally.calibrated) parts.push(`${tally.calibrated} calibrados`);
+      if (tally.skipped)    parts.push(`${tally.skipped} sin aplicar`);
+      setPriceMsg(parts.join(' · '));
+
+      // Avisos: precios viejos, o fondos que deberían tener precio y no lo tienen
+      const stale   = results.filter(q => q.stale).map(q => `${q.name} (${q.date})`);
+      const missing = results.filter(q => !q.price && q.note !== 'sin precio público').map(q => q.name);
+      const warn = [
+        stale.length   ? `precio antiguo: ${stale.join(', ')}` : '',
+        missing.length ? `sin precio: ${missing.join(', ')}`   : '',
+      ].filter(Boolean).join(' · ');
+      if (warn) setPriceWarn(`⚠ ${warn}`);
+
+      setTimeout(() => setPriceMsg(null), 5000);
+      setTimeout(() => setPriceWarn(null), 15000);
     } catch {
       setPriceMsg('Error al obtener precios');
       setTimeout(() => setPriceMsg(null), 4000);
@@ -152,7 +169,11 @@ export default function Dashboard() {
             >
               {updatingPrices ? '⟳ Actualizando…' : priceMsg ?? '⟳ Precios'}
             </button>
-            {data.lastUpd && (
+            {priceWarn ? (
+              <span style={{ fontSize: 9, color: '#f59e0b', letterSpacing: '0.04em', maxWidth: 320, textAlign: 'right' }}>
+                {priceWarn}
+              </span>
+            ) : data.lastUpd && (
               <span style={{ fontSize: 9, color: '#334155', letterSpacing: '0.04em' }}>
                 última actualización: {data.lastUpd}
               </span>

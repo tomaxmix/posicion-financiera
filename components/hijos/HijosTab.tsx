@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { Child, ChildFund, ChildAccount } from '@/lib/types';
-import { fmt, fmt2, fmtPct, todayStr } from '@/lib/utils';
+import { fmt, fmt2, fmtPct, todayStr, todayISO } from '@/lib/utils';
+import { markManual } from '@/lib/pricing';
 import { S } from '@/lib/styles';
 import Modal from '@/components/shared/Modal';
 
@@ -61,7 +62,8 @@ export default function HijosTab({ children, onSave }: Props) {
         funds: c.funds.map(f => {
           const m   = parseFloat(vals['f_m_'   + f.id]) || f.m;
           const inv = parseFloat(vals['f_inv_' + f.id]) || f.inv;
-          return { ...f, m, inv, r: inv > 0 ? (m - inv) / inv * 100 : 0 };
+          const base = m !== f.m ? markManual(f, todayISO()) : f;
+          return { ...base, m, inv, r: inv > 0 ? (m - inv) / inv * 100 : 0 };
         }),
       }));
     }

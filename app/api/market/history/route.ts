@@ -1,24 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-/* ── Mapeo ISIN → símbolo Yahoo conocido (para los fondos de Tomás) ──────── */
-/* Símbolos verificados en Yahoo Finance (junio 2026) */
-const ISIN_OVERRIDES: Record<string, string> = {
-  'IE00BFZMJT78': '0P0001FAME.F',   // Neuberger Berman Short Dur Er Bd
-  'FR0000991390': '0P00002BDB.F',   // La Française Trésorerie ISR
-  'IE0031573904': '0P00000YDD.F',   // Brandes Global Value A Euro Acc
-  'IE00BYX5P602': '0P0001CJGV.F',  // Fidelity MSCI World Index Fund
-  'IE0031786696': '0P00012I6A.F',   // Vanguard Em Mkts Stk Idx € Acc
-  'LU1984712320': '0P0001I1JP.F',   // Janus Henderson Hrzn Glb SC A2 EUR
-  'LU1832174962': '0P0001DKPM.F',   // Indépendance AM Europe Small A (C)
-  'LU0348784041': 'DJER.F',          // Allianz Oriental Income (ETF en Yahoo)
-  'LU2145461757': '',                 // Robeco Smart Energy — sin datos Yahoo
-  'N5459':        '',                 // MyInvestor PP — sin datos externos
-  'LU0380865021': 'XESC.DE',         // Xtrackers Euro Stoxx 50
-  'IE00BMW42181': 'ESIH.L',          // iShares MSCI Europe Health Care
-  'GRF:BME':      'GRF.MC',          // Grifols BME
-  'LU1694789451': '0P0001CH1D.F',   // DNCA Invest Alpha Bonds A EUR
-  'IE00BD4GTQ32': 'FLXF.MU',        // Franklin Templeton Infrastructure
-};
+import { findYahooTicker, hasPublicPrice, YAHOO_TICKERS } from '@/lib/tickers';
 
 const RANGE_MAP: Record<string, { range: string; interval: string }> = {
   '1d': { range: '5d',  interval: '30m' },
@@ -30,27 +11,11 @@ const RANGE_MAP: Record<string, { range: string; interval: string }> = {
 };
 
 const YH = 'https://query1.finance.yahoo.com';
-const YH2 = 'https://query2.finance.yahoo.com';
 const HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
   'Accept': 'application/json',
   'Accept-Language': 'es-ES,es;q=0.9',
 };
-
-/* ── Busca ticker en Yahoo por ISIN ── */
-async function searchYahooTicker(isin: string): Promise<string | null> {
-  try {
-    const url = `${YH2}/v1/finance/search?q=${encodeURIComponent(isin)}&quotesCount=3&newsCount=0&listsCount=0`;
-    const res  = await fetch(url, { headers: HEADERS, next: { revalidate: 86400 } });
-    const data = await res.json();
-    const quotes: any[] = data?.quotes || [];
-
-    // Preferir resultados que sean fondos (MUTUALFUND, ETF) o equity
-    const fund = quotes.find(q => q.quoteType === 'MUTUALFUND' || q.quoteType === 'ETF');
-    const equity = quotes.find(q => q.quoteType === 'EQUITY');
-    return (fund || equity || quotes[0])?.symbol || null;
-  } catch { return null; }
-}
 
 /* ── Obtiene histórico de Yahoo Finance ── */
 async function fetchYahooHistory(ticker: string, range: string, interval: string) {
@@ -110,7 +75,8 @@ async function fetchMorningstar(isin: string, period: string) {
   if (!contentType.includes('json')) throw new Error('Morningstar no devolvió JSON');
 
   const searchData = await searchRes.json();
-  const match = (searchData?.rows || []).find((r: any) => r.ISIN === isin) || searchData?.rows?.[0];
+  // Solo el fondo con ese ISIN exacto: antes, si no lo encontraba, cogía el primero de la lista
+  const match = (searchData?.rows || []).find((r: any) => r.ISIN === isin);
   if (!match?.SecId) throw new Error('No encontrado en Morningstar');
 
   // 2. Calcular fechas
@@ -158,13 +124,13 @@ export async function GET(req: NextRequest) {
   const { range, interval } = RANGE_MAP[period] || RANGE_MAP['1y'];
   const errors: string[] = [];
 
-  /* 0. ISINs sin cobertura externa conocida */
-  if (isin === 'N5459') {
-    return NextResponse.json({ error: 'Plan de Pensiones MyInvestor — datos no disponibles en fuentes externas', points: [] });
+  /* 0. Sin precio público (planes de pensiones) */
+  if (!hasPublicPrice(isin, type)) {
+    return NextResponse.json({ error: 'Plan de pensiones: no tiene precio público en fuentes externas', points: [] });
   }
 
   /* 1. Override conocido → Yahoo directo */
-  const knownTicker = ISIN_OVERRIDES[isin];
+  const knownTicker = YAHOO_TICKERS[isin];
   if (knownTicker) {
     try {
       const data = await fetchYahooHistory(knownTicker, range, interval);
@@ -176,8 +142,8 @@ export async function GET(req: NextRequest) {
 
   /* 2. Buscar ticker en Yahoo por ISIN */
   try {
-    const ticker = await searchYahooTicker(isin);
-    if (ticker) {
+    const ticker = await findYahooTicker(isin);
+    if (ticker && ticker !== knownTicker) {
       const data = await fetchYahooHistory(ticker, range, interval);
       return NextResponse.json(data);
     }

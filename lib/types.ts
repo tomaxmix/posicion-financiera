@@ -7,8 +7,10 @@ export interface Fund {
   inv: number;    // capital invertido
   r: number;      // rentabilidad %
   targetPct?: number;    // % objetivo en cartera
-  lastPriceDate?: string; // fecha del último precio publicado (YYYY-MM-DD)
-  priceSource?: string;   // 'yahoo' | 'morningstar'
+  lastPriceDate?: string; // fecha del último precio o valor (YYYY-MM-DD)
+  priceSource?: string;   // 'yahoo' | 'manual' (antes también 'morningstar')
+  refPrice?: number;      // precio de referencia: con él se valoró el fondo la última vez (ver lib/pricing.ts)
+  priceKey?: string;      // de dónde sale refPrice ('yahoo:TICKER'); si cambia, la referencia ya no vale
 }
 
 export interface Cuentas {
@@ -49,6 +51,10 @@ export interface ChildFund {
   m: number;
   inv: number;
   r: number;
+  lastPriceDate?: string; // mismos campos de precio que Fund
+  priceSource?: string;
+  refPrice?: number;
+  priceKey?: string;
 }
 
 export interface ChildAccount {
@@ -111,4 +117,17 @@ export interface UserData {
   alerts: Alert[];
   watchlist: WatchlistItem[];
   recurring: RecurringContribution[];
+}
+
+/* Respuesta de /api/market para cada ISIN */
+export interface PriceQuote {
+  isin: string;
+  name: string;
+  price: number | null;   // precio por participación
+  currency: string;
+  date: string | null;    // fecha real del precio (YYYY-MM-DD)
+  source: 'yahoo' | 'none';
+  key: string | null;     // identidad del precio, p. ej. 'yahoo:ESIH.DE'
+  stale: boolean;         // el precio tiene más de 10 días
+  note?: string;          // por qué no hay precio
 }
